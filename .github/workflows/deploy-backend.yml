@@ -187,7 +187,7 @@ jobs:
           set -euo pipefail
           SECRET_FILE="$RUNNER_TEMP/worker-secrets.json"
           SECRET_NAMES="$RUNNER_TEMP/worker-secret-names.txt"
-          wrangler secret list --name "$WORKER_NAME" > "$SECRET_FILE"
+          wrangler secret list --name "$WORKER_NAME" --config worker/wrangler.deploy.toml > "$SECRET_FILE"
           node - "$SECRET_FILE" > "$SECRET_NAMES" <<'NODE'
           const fs = require('node:fs');
           let list = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
