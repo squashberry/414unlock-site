@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f5f6f3">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Confirm payment · 414Unlock</title>
+  <link rel="stylesheet" href="site.css"><link rel="stylesheet" href="payment.css">
+  <script src="site-config.js"></script><script defer src="payment.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html" aria-label="414Unlock home"><span class="brand-mark">414</span><span class="brand-name">UNLOCK</span></a>
+  <nav class="topnav"><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="account.html?flow=signin">Account</a></nav>
+</header>
+<main class="payment-page">
+  <div class="payment-container">
+    <div class="payment-intro">
+      <div class="eyebrow dark-eyebrow"><span class="payment-lock">◆</span> SECURE PAYMENT CHECKPOINT</div>
+      <h1>One device.<br><em>One verified payment.</em></h1>
+      <p>Confirm the iPhone detected by 414Unlock, pay through SquashberryPay, then enter the confirmation code it sends you.</p>
+      <div class="payment-steps"><span class="active"><b>01</b> Device</span><i></i><span><b>02</b> Payment</span><i></i><span><b>03</b> Return to app</span></div>
+    </div>
+    <div class="payment-grid">
+      <section class="device-preview-card" aria-label="Detected device preview">
+        <div class="preview-card-top"><span class="live-dot"></span> DETECTED DEVICE <span id="device-status" class="preview-status">WAITING FOR APP</span></div>
+        <div class="phone-stage">
+          <div class="phone-device">
+            <div class="phone-side-button"></div><div class="phone-frame"><div class="phone-glass"><div class="phone-island"></div><div class="phone-wallpaper"><span></span><i></i><b></b></div><div class="phone-time">9:41</div></div></div>
+          </div>
+          <div class="phone-shadow"></div>
+        </div>
+        <div class="device-meta">
+          <div class="device-overline">YOUR SELECTED IPHONE</div>
+          <h2 id="device-model">Waiting for device preview</h2>
+          <p>Only the device linked to this payment session can be used to continue.</p>
+          <div class="device-id-row"><div><span id="identifier-label">Serial / IMEI</span><strong id="masked-identifier">•••• •••• ••••</strong></div><span class="id-shield">⌑</span></div>
+          <div class="payment-reference-row"><div><span>PAYMENT REFERENCE</span><strong id="payment-reference">Loading reference…</strong></div><button id="copy-reference" type="button" title="Copy payment reference" aria-label="Copy payment reference">⧉</button></div>
+          <p class="privacy-note"><span>●</span> The full serial number or IMEI is never shown on this page.</p>
+        </div>
+      </section>
+      <section class="payment-action-card">
+        <div class="action-heading"><span class="step-badge">02</span><div><div class="card-kicker">PAYMENT METHOD</div><h2>Pay using SquashberryPay</h2></div></div>
+        <p class="action-lede">Use SquashberryPay to complete payment for the device preview shown here. Keep your payment reference with the transaction so it can be matched to this session.</p>
+        <button class="button button-primary pay-button" id="pay-button" type="button">Pay using SquashberryPay <span>↗</span></button>
+        <p class="under-button">You'll complete payment with SquashberryPay. 414Unlock does not collect your card or mobile-money PIN.</p>
+        <div class="action-divider"><span>AFTER YOU PAY</span></div>
+        <label class="code-label" for="payment-code">Enter the confirmation code SquashberryPay sent you</label>
+        <p class="code-help">The code is checked with the payment service. A screenshot or payment message alone does not mark this session as paid.</p>
+        <div class="code-field"><span>⌑</span><input id="payment-code" name="payment-code" type="text" autocomplete="one-time-code" inputmode="text" maxlength="100" placeholder="Enter payment confirmation code" disabled></div>
+        <button class="button button-dark verify-pay-button" id="verify-button" type="button" disabled>Verify payment <span>→</span></button>
+        <div class="payment-message" id="payment-message" role="status" aria-live="polite">Start 414Unlock's secure payment session to load the device preview.</div>
+        <div id="verified-panel" class="verified-panel hidden"><div class="verified-icon">✓</div><div><strong>Payment verified</strong><p>SquashberryPay confirmed this payment for the selected device.</p></div><button class="button button-primary continue-button" id="continue-button" type="button">Continue in app <span>↗</span></button></div>
+        <div class="secure-note"><span>⌑</span><p>Payment verification is server-side. The app will recheck the payment status and device binding before continuing.</p></div>
+      </section>
+    </div>
+    <p class="payment-footer-note">Your payment is associated with the detected device's server-side fingerprint and this payment reference. If the preview doesn't match your iPhone, stop and return to 414Unlock.</p>
+  </div>
+</main>
+<footer class="footer"><div class="wrap footer-inner"><a class="brand footer-brand" href="index.html"><span class="brand-mark">414</span><span class="brand-name">UNLOCK</span></a><span>© 2026 414Unlock. Use only on devices you own or are authorized to service.</span><div><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></div></div></footer>
+</body>
+</html>
