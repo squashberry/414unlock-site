@@ -22,3 +22,6 @@ bucket_name = "414unlock-private-documents"
 # RESEND_API_KEY   - transactional email API key
 # FROM_EMAIL       - verified sender identity in your email provider
 # ADMIN_EMAILS     - comma-separated review-admin email addresses
+# Payment verification integration; set only after confirming SquashberryPay's actual API contract:
+# wrangler secret put SQUASHBERRYPAY_VERIFY_URL
+# wrangler secret put SQUASHBERRYPAY_API_KEY
