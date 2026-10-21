@@ -23,6 +23,16 @@ export default {
       if (request.method === "GET" && path === "/api/auth/me") return await getMe(request, env, headers);
       if (request.method === "POST" && path === "/api/auth/app-code") return await createAppCode(request, env, headers);
       if (request.method === "POST" && path === "/api/auth/redeem-app-code") return await redeemAppCode(request, env, headers);
+      if (request.method === "GET" && path === "/api/wallet/overview") return await walletOverview(request, env, headers);
+      if (request.method === "POST" && path === "/api/wallet/topups") return await createTopupRequest(request, env, headers);
+      const submitTopupMatch = path.match(/^\/api\/wallet\/topups\/([a-f0-9]{32})\/submit-reference$/i);
+      if (request.method === "POST" && submitTopupMatch) return await submitTopupReference(request, env, headers, submitTopupMatch[1]);
+      if (request.method === "POST" && path === "/api/orders") return await createServiceOrder(request, env, headers);
+      if (request.method === "GET" && path === "/api/admin/queue") return await adminQueue(request, env, headers);
+      const adminTopupMatch = path.match(/^\/api\/admin\/topups\/([a-f0-9]{32})\/review$/i);
+      if (request.method === "POST" && adminTopupMatch) return await reviewTopup(request, env, headers, adminTopupMatch[1]);
+      const adminOrderMatch = path.match(/^\/api\/admin\/orders\/([a-f0-9]{32})\/status$/i);
+      if (request.method === "POST" && adminOrderMatch) return await updateServiceOrderStatus(request, env, headers, adminOrderMatch[1]);
       if (request.method === "POST" && path === "/api/payments/session") return await createPaymentSession(request, env, headers);
       if (request.method === "GET" && path === "/api/payments/session") return await getPaymentSession(request, env, headers, new URL(request.url));
       if (request.method === "GET" && path === "/api/payments/status") return await getPaymentStatus(request, env, headers, new URL(request.url));
@@ -298,6 +308,326 @@ async function reviewSubmission(request, env, headers, id) {
       await env.DB.prepare("UPDATE verification_submissions SET document_key=NULL WHERE id=?").bind(id).run();
     }
     return json({ ok: true, status, message: "Application " + status + ". Uploaded document deleted after review." }, 200, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+const WALLET_MODEL_PRICES = Object.freeze({
+  iphone_6: 1400,
+  iphone_7: 1600,
+  iphone_8: 1900,
+  iphone_x: 2200,
+  iphone_xr: 2500,
+  iphone_11_12: 3000,
+  iphone_13_14: 3500,
+  iphone_15: 5000,
+  iphone_16: 6500
+});
+const WALLET_MODEL_NAMES = Object.freeze({
+  iphone_6: "iPhone 6 / 6 Plus / 6S / SE",
+  iphone_7: "iPhone 7 / 7 Plus",
+  iphone_8: "iPhone 8 / 8 Plus",
+  iphone_x: "iPhone X",
+  iphone_xr: "iPhone XR / XS / XS Max",
+  iphone_11_12: "iPhone 11 & 12 Series",
+  iphone_13_14: "iPhone 13 & 14 Series",
+  iphone_15: "iPhone 15 Series",
+  iphone_16: "iPhone 16 Series"
+});
+
+async function requireApprovedAccount(user, env) {
+  const approved = await env.DB.prepare(
+    "SELECT id FROM verification_submissions WHERE user_id=? AND status='approved' ORDER BY submitted_at DESC LIMIT 1"
+  ).bind(user.id).first();
+  if (!approved) throw new ApiError(403, "VERIFICATION_REQUIRED", "Complete account verification and wait for approval before using wallet top-ups or service requests.");
+}
+
+async function ensureWallet(userId, env, now) {
+  await env.DB.prepare("INSERT OR IGNORE INTO wallets (user_id,balance,created_at,updated_at) VALUES (?,0,?,?)")
+    .bind(userId, now, now).run();
+}
+
+function walletServiceName(serviceKey) {
+  return serviceKey === "imei_check" ? "IMEI check" : "iPhone unlock service";
+}
+
+function publicWalletOrder(row) {
+  return {
+    id: row.id,
+    serviceKey: row.service_key,
+    serviceName: walletServiceName(row.service_key),
+    modelKey: row.model_key,
+    modelName: WALLET_MODEL_NAMES[row.model_key] || row.model_key,
+    deviceModel: row.device_model,
+    maskedIdentifier: row.masked_identifier,
+    fastService: Boolean(row.fast_service),
+    amountDue: Number(row.amount_due),
+    status: row.status,
+    checkCreditApplied: Boolean(row.check_credit_order_id),
+    providerReference: row.provider_reference || "",
+    adminNote: row.admin_note || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+async function walletOverview(request, env, headers) {
+  try {
+    const user = await readToken(request, env), now = Math.floor(Date.now() / 1000);
+    await ensureWallet(user.id, env, now);
+    const wallet = await env.DB.prepare("SELECT balance FROM wallets WHERE user_id=?").bind(user.id).first();
+    const transactions = await env.DB.prepare(
+      "SELECT id,kind,amount,balance_after,reference,description,created_at FROM wallet_transactions WHERE user_id=? ORDER BY created_at DESC LIMIT 30"
+    ).bind(user.id).all();
+    const topups = await env.DB.prepare(
+      "SELECT id,amount,request_reference,provider_reference,status,created_at,submitted_at,reviewed_at,review_note FROM topup_requests WHERE user_id=? ORDER BY created_at DESC LIMIT 20"
+    ).bind(user.id).all();
+    const orders = await env.DB.prepare(
+      "SELECT id,service_key,model_key,device_model,masked_identifier,fast_service,amount_due,status,check_credit_order_id,provider_reference,admin_note,created_at,updated_at FROM service_orders WHERE user_id=? ORDER BY created_at DESC LIMIT 25"
+    ).bind(user.id).all();
+    return json({
+      ok: true,
+      balance: Number(wallet ? wallet.balance : 0),
+      transactions: (transactions.results || []).map((r) => ({
+        id: r.id, kind: r.kind, amount: Number(r.amount), balanceAfter: Number(r.balance_after),
+        reference: r.reference, description: r.description, createdAt: r.created_at
+      })),
+      topups: (topups.results || []).map((r) => ({
+        id: r.id, amount: Number(r.amount), requestReference: r.request_reference,
+        providerReference: r.provider_reference || "", status: r.status, createdAt: r.created_at,
+        submittedAt: r.submitted_at, reviewedAt: r.reviewed_at, reviewNote: r.review_note || ""
+      })),
+      orders: (orders.results || []).map(publicWalletOrder)
+    }, 200, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+async function createTopupRequest(request, env, headers) {
+  try {
+    const user = await readToken(request, env), body = await readJson(request);
+    await requireApprovedAccount(user, env);
+    const amount = Number(body.amount);
+    if (!Number.isSafeInteger(amount) || amount < 50 || amount > 100000) {
+      throw new ApiError(400, "INVALID_TOPUP_AMOUNT", "Enter a whole-Dalasi top-up from D50 to D100,000.");
+    }
+    const now = Math.floor(Date.now() / 1000), id = randomHex(16);
+    const requestReference = "414T-" + randomHex(5).toUpperCase();
+    await ensureWallet(user.id, env, now);
+    await env.DB.prepare(
+      "INSERT INTO topup_requests (id,user_id,amount,request_reference,provider_reference,status,created_at,submitted_at) VALUES (?,?,?,?,NULL,'awaiting_payment',?,NULL)"
+    ).bind(id, user.id, amount, requestReference, now).run();
+    return json({ ok: true, topup: { id, amount, requestReference, status: "awaiting_payment", createdAt: now }, message: "Top-up request created. Submit the SquashberryPay transaction reference after payment; the wallet is credited only after an administrator verifies it." }, 201, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+async function submitTopupReference(request, env, headers, id) {
+  try {
+    const user = await readToken(request, env), body = await readJson(request);
+    await requireApprovedAccount(user, env);
+    const providerReference = typeof body.providerReference === "string" ? body.providerReference.trim().slice(0, 120) : "";
+    if (providerReference.length < 3) throw new ApiError(400, "INVALID_PAYMENT_REFERENCE", "Enter the SquashberryPay transaction reference shown for the completed payment.");
+    const now = Math.floor(Date.now() / 1000);
+    let result;
+    try {
+      result = await env.DB.prepare(
+        "UPDATE topup_requests SET provider_reference=?,status='pending',submitted_at=? WHERE id=? AND user_id=? AND status='awaiting_payment'"
+      ).bind(providerReference, now, id, user.id).run();
+    } catch (error) {
+      if (String(error && error.message || "").toLowerCase().includes("unique")) {
+        throw new ApiError(409, "PAYMENT_REFERENCE_ALREADY_USED", "That provider transaction reference has already been submitted for another request.");
+      }
+      throw error;
+    }
+    if (!result.meta || result.meta.changes !== 1) throw new ApiError(409, "TOPUP_NOT_AWAITING_REFERENCE", "This top-up request is not awaiting a payment reference. Refresh your wallet and check its current status.");
+    return json({ ok: true, status: "pending", message: "Payment reference submitted for review. Wallet credit is pending until SquashberryPay confirms the transaction." }, 200, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+async function deviceEncryptionKey(env, usage) {
+  const secret = env.DEVICE_DATA_ENCRYPTION_KEY || "";
+  if (secret.length < 32) throw new ApiError(503, "DEVICE_STORAGE_NOT_CONFIGURED", "Secure device-data storage is not configured. No device order was accepted.");
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(secret));
+  return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, usage || ["encrypt", "decrypt"]);
+}
+
+async function encryptDeviceIdentifier(value, env) {
+  const key = await deviceEncryptionKey(env, ["encrypt"]), iv = randomBytes(12);
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(value)));
+  const joined = new Uint8Array(iv.length + cipher.length);
+  joined.set(iv, 0);
+  joined.set(cipher, iv.length);
+  return base64url(joined);
+}
+
+function decodeBase64Url(value) {
+  const padded = String(value).replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(padded + "=".repeat((4 - padded.length % 4) % 4));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+async function decryptDeviceIdentifier(value, env) {
+  try {
+    const joined = decodeBase64Url(value);
+    if (joined.length < 29) throw new Error("Invalid ciphertext");
+    const iv = joined.slice(0, 12), cipher = joined.slice(12);
+    const key = await deviceEncryptionKey(env, ["decrypt"]);
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, cipher);
+    return decoder.decode(plain);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(503, "DEVICE_DATA_UNAVAILABLE", "Device details cannot be decrypted. Check the configured encryption secret before continuing.");
+  }
+}
+
+async function createServiceOrder(request, env, headers) {
+  try {
+    const user = await readToken(request, env), body = await readJson(request);
+    await requireApprovedAccount(user, env);
+    const serviceKey = body.serviceType === "imei_check" ? "imei_check" : body.serviceType === "unlock" ? "unlock" : "";
+    const modelKey = typeof body.modelKey === "string" ? body.modelKey.trim() : "";
+    const deviceModel = typeof body.deviceModel === "string" ? body.deviceModel.trim().slice(0, 120) : "";
+    const identifierKind = typeof body.identifierKind === "string" ? body.identifierKind.trim().toLowerCase() : "";
+    const rawIdentifier = typeof body.identifier === "string" ? body.identifier.trim() : "";
+    const identifier = rawIdentifier.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    const issueDescription = typeof body.issueDescription === "string" ? body.issueDescription.trim().slice(0, 1000) : "";
+    const ownershipConfirmed = body.ownershipConfirmed === true;
+    const noSignalConfirmed = body.noSignalConfirmed === true;
+    const fastService = serviceKey === "unlock" && body.fastService === true;
+
+    if (!serviceKey) throw new ApiError(400, "INVALID_SERVICE", "Choose a listed iPhone service.");
+    if (!Object.prototype.hasOwnProperty.call(WALLET_MODEL_PRICES, modelKey)) throw new ApiError(400, "INVALID_MODEL_PRICE", "Choose a model band from the published price list.");
+    if (deviceModel.length < 2) throw new ApiError(400, "INVALID_DEVICE_MODEL", "Enter the exact device model.");
+    if (!["serial", "imei"].includes(identifierKind)) throw new ApiError(400, "INVALID_IDENTIFIER_KIND", "Choose serial number or IMEI.");
+    if (identifierKind === "imei" && !/^\d{14,16}$/.test(identifier)) throw new ApiError(400, "INVALID_DEVICE_IDENTIFIER", "The IMEI format is invalid.");
+    if (identifierKind === "serial" && !/^[A-Z0-9]{6,64}$/.test(identifier)) throw new ApiError(400, "INVALID_DEVICE_IDENTIFIER", "The serial number format is invalid.");
+    if (issueDescription.length < 3) throw new ApiError(400, "ISSUE_DESCRIPTION_REQUIRED", "Describe the device issue or service request.");
+    if (!ownershipConfirmed) throw new ApiError(400, "DEVICE_AUTHORIZATION_REQUIRED", "Confirm that you own the device or are authorised by its owner.");
+    if (serviceKey === "unlock" && !noSignalConfirmed) throw new ApiError(400, "SERVICE_LIMITS_NOT_CONFIRMED", "Confirm the listed Wi-Fi-only / no-signal service limitation.");
+    if (serviceKey === "imei_check" && body.fastService === true) throw new ApiError(400, "FAST_SERVICE_NOT_APPLICABLE", "Fast service is an add-on for unlock services only.");
+
+    const now = Math.floor(Date.now() / 1000);
+    const basePrice = serviceKey === "imei_check" ? 150 : WALLET_MODEL_PRICES[modelKey];
+    const fingerprint = await keyedHash("wallet-order:" + identifierKind + ":" + identifier, env);
+    let checkCreditOrderId = null, checkCredit = 0;
+    if (serviceKey === "unlock") {
+      const completedCheck = await env.DB.prepare(
+        "SELECT id FROM service_orders WHERE user_id=? AND service_key='imei_check' AND status='completed' AND check_credit_used_at IS NULL AND identifier_fingerprint=? AND created_at>=? ORDER BY created_at DESC LIMIT 1"
+      ).bind(user.id, fingerprint, now - 604800).first();
+      if (completedCheck) { checkCreditOrderId = completedCheck.id; checkCredit = 150; }
+    }
+    const amountDue = basePrice + (fastService ? 1000 : 0) - checkCredit;
+    const ciphertext = await encryptDeviceIdentifier(identifier, env);
+    const id = randomHex(16);
+    const maskedIdentifier = "•••• •••• " + identifier.slice(-4);
+    await ensureWallet(user.id, env, now);
+    try {
+      await env.DB.prepare(
+        "INSERT INTO service_orders (id,user_id,service_key,model_key,device_model,identifier_kind,identifier_ciphertext,identifier_fingerprint,masked_identifier,issue_description,fast_service,amount_due,status,ownership_confirmed,no_signal_confirmed,check_credit_order_id,check_credit_used_at,provider_reference,admin_note,created_at,updated_at,processed_at,completed_at,reviewed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'submitted',1,?,?,NULL,NULL,?,?,NULL,NULL,NULL)"
+      ).bind(id, user.id, serviceKey, modelKey, deviceModel, identifierKind, ciphertext, fingerprint, maskedIdentifier, issueDescription, fastService ? 1 : 0, amountDue, 1, serviceKey === "unlock" ? 1 : 0, checkCreditOrderId, now, now).run();
+    } catch (error) {
+      const message = String(error && error.message || "");
+      if (message.includes("INSUFFICIENT_BALANCE")) throw new ApiError(409, "INSUFFICIENT_BALANCE", "Your wallet balance is not enough for this service. Top up before submitting the request.");
+      if (message.includes("CHECK_CREDIT_INVALID")) throw new ApiError(409, "CHECK_CREDIT_ALREADY_USED", "The IMEI-check credit changed before the order was created. Refresh the quote and try again.");
+      if (message.includes("WALLET_MISSING")) throw new ApiError(503, "WALLET_NOT_READY", "The wallet is not ready. Refresh your dashboard and try again.");
+      throw error;
+    }
+    const wallet = await env.DB.prepare("SELECT balance FROM wallets WHERE user_id=?").bind(user.id).first();
+    const order = await env.DB.prepare(
+      "SELECT id,service_key,model_key,device_model,masked_identifier,fast_service,amount_due,status,check_credit_order_id,provider_reference,admin_note,created_at,updated_at FROM service_orders WHERE id=? AND user_id=?"
+    ).bind(id, user.id).first();
+    return json({ ok: true, order: publicWalletOrder(order), balance: Number(wallet ? wallet.balance : 0), message: "Service request submitted. The request is queued for manual review." + (checkCredit ? " D150 IMEI-check credit was applied." : "") }, 201, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+async function adminQueue(request, env, headers) {
+  try {
+    const admin = await requireAdmin(request, env);
+    const topups = await env.DB.prepare(
+      "SELECT t.id,t.user_id,t.amount,t.request_reference,t.provider_reference,t.status,t.created_at,t.submitted_at,u.full_name,u.email FROM topup_requests t JOIN users u ON u.id=t.user_id WHERE t.status='pending' ORDER BY t.submitted_at ASC LIMIT 100"
+    ).all();
+    const orders = await env.DB.prepare(
+      "SELECT o.*,u.full_name,u.email FROM service_orders o JOIN users u ON u.id=o.user_id WHERE o.status IN ('submitted','registered','processing') ORDER BY CASE o.status WHEN 'submitted' THEN 0 WHEN 'registered' THEN 1 ELSE 2 END,o.created_at ASC LIMIT 100"
+    ).all();
+    const safeOrders = [];
+    for (const o of (orders.results || [])) {
+      safeOrders.push({
+        id: o.id, userId: o.user_id, fullName: o.full_name, email: o.email,
+        serviceKey: o.service_key, serviceName: walletServiceName(o.service_key),
+        modelKey: o.model_key, modelName: WALLET_MODEL_NAMES[o.model_key] || o.model_key,
+        deviceModel: o.device_model, identifierKind: o.identifier_kind,
+        identifier: await decryptDeviceIdentifier(o.identifier_ciphertext, env),
+        maskedIdentifier: o.masked_identifier, issueDescription: o.issue_description,
+        fastService: Boolean(o.fast_service), amountDue: Number(o.amount_due), status: o.status,
+        ownershipConfirmed: Boolean(o.ownership_confirmed), noSignalConfirmed: Boolean(o.no_signal_confirmed),
+        checkCreditApplied: Boolean(o.check_credit_order_id), providerReference: o.provider_reference || "",
+        adminNote: o.admin_note || "", createdAt: o.created_at, updatedAt: o.updated_at,
+        processedAt: o.processed_at, completedAt: o.completed_at
+      });
+    }
+    return json({
+      ok: true,
+      adminEmail: admin.email,
+      topups: (topups.results || []).map((t) => ({
+        id: t.id, userId: t.user_id, fullName: t.full_name, email: t.email, amount: Number(t.amount),
+        requestReference: t.request_reference, providerReference: t.provider_reference || "",
+        status: t.status, createdAt: t.created_at, submittedAt: t.submitted_at
+      })),
+      orders: safeOrders
+    }, 200, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+async function reviewTopup(request, env, headers, id) {
+  try {
+    const admin = await requireAdmin(request, env), body = await readJson(request);
+    const decision = typeof body.decision === "string" ? body.decision : "";
+    const note = typeof body.note === "string" ? body.note.trim().slice(0, 500) : "";
+    if (!["approve", "reject"].includes(decision)) throw new ApiError(400, "INVALID_DECISION", "Choose approve or reject.");
+    const current = await env.DB.prepare("SELECT id,provider_reference,status FROM topup_requests WHERE id=?").bind(id).first();
+    if (!current || current.status !== "pending") throw new ApiError(409, "TOPUP_NOT_PENDING", "This top-up is no longer waiting for review.");
+    if (decision === "approve" && !current.provider_reference) throw new ApiError(400, "PAYMENT_REFERENCE_REQUIRED", "A SquashberryPay transaction reference is required before approval.");
+    const now = Math.floor(Date.now() / 1000), status = decision === "approve" ? "approved" : "rejected";
+    const result = await env.DB.prepare(
+      "UPDATE topup_requests SET status=?,reviewed_by=?,reviewed_at=?,review_note=? WHERE id=? AND status='pending'"
+    ).bind(status, admin.email, now, note, id).run();
+    if (!result.meta || result.meta.changes !== 1) throw new ApiError(409, "TOPUP_REVIEW_CONFLICT", "This top-up was handled by another administrator.");
+    return json({ ok: true, status, credited: decision === "approve", message: decision === "approve" ? "Payment approved and wallet credited once." : "Top-up rejected; no credit was added." }, 200, headers);
+  } catch (error) {
+    if (String(error && error.message || "").toLowerCase().includes("unique")) throw new ApiError(409, "PAYMENT_REFERENCE_ALREADY_USED", "That SquashberryPay transaction reference is already assigned to another top-up.");
+    throwOrReturn(error, headers);
+  }
+}
+
+async function updateServiceOrderStatus(request, env, headers, id) {
+  try {
+    const admin = await requireAdmin(request, env), body = await readJson(request);
+    const nextStatus = typeof body.status === "string" ? body.status.trim() : "";
+    const note = typeof body.note === "string" ? body.note.trim().slice(0, 1000) : "";
+    const providerReference = typeof body.providerReference === "string" ? body.providerReference.trim().slice(0, 150) : "";
+    const current = await env.DB.prepare("SELECT id,status,amount_due FROM service_orders WHERE id=?").bind(id).first();
+    if (!current) throw new ApiError(404, "SERVICE_ORDER_NOT_FOUND", "The service request could not be found.");
+    const transitions = {
+      submitted: ["registered", "rejected"],
+      registered: ["processing", "rejected"],
+      processing: ["completed", "rejected"],
+      completed: [],
+      rejected: []
+    };
+    if (!(transitions[current.status] || []).includes(nextStatus)) {
+      throw new ApiError(409, "INVALID_ORDER_TRANSITION", "This status change is not allowed from the current order state.");
+    }
+    const now = Math.floor(Date.now() / 1000);
+    const result = await env.DB.prepare(
+      "UPDATE service_orders SET status=?,provider_reference=CASE WHEN ?<>'' THEN ? ELSE provider_reference END,admin_note=CASE WHEN ?<>'' THEN ? ELSE admin_note END,reviewed_by=?,updated_at=?,processed_at=CASE WHEN ?='processing' THEN COALESCE(processed_at,?) ELSE processed_at END,completed_at=CASE WHEN ?='completed' THEN ? ELSE completed_at END WHERE id=? AND status=?"
+    ).bind(nextStatus, providerReference, providerReference, note, note, admin.email, now, nextStatus, now, nextStatus, now, id, current.status).run();
+    if (!result.meta || result.meta.changes !== 1) throw new ApiError(409, "ORDER_UPDATE_CONFLICT", "The order changed while you were updating it. Refresh the queue.");
+    const refunded = nextStatus === "rejected" && ["submitted", "registered"].includes(current.status);
+    return json({
+      ok: true, status: nextStatus, refunded,
+      message: refunded ? "Request rejected before processing. Its service charge has been returned to the customer's wallet." :
+        nextStatus === "rejected" ? "Request rejected after processing had started; no automatic refund was applied." : "Service request status updated."
+    }, 200, headers);
   } catch (error) { throwOrReturn(error, headers); }
 }
 
