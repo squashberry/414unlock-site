@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 var cfg=window.UNLOCK414_CONFIG||{},api=(cfg.API_BASE_URL||"").replace(/\/+$/,"");
-var params=new URLSearchParams(location.search),launch=params.get("launch")||"",state=params.get("state")||"";
+var params=new URLSearchParams(location.search),launch=params.get("launch")||sessionStorage.getItem("414unlock_payment_launch")||"",state=params.get("state")||"";
 var token=sessionStorage.getItem("414unlock_token"),session=null,verified=false;
 var message=document.getElementById("payment-message"),payButton=document.getElementById("pay-button"),verifyButton=document.getElementById("verify-button"),codeInput=document.getElementById("payment-code"),continueButton=document.getElementById("continue-button"),verifiedPanel=document.getElementById("verified-panel");
 function setMessage(text,type){message.textContent=text;message.className="payment-message"+(type?" "+type:"");}
@@ -31,6 +31,8 @@ async function loadSession(){
   var params2=new URLSearchParams({launch:launch});
   var data=await request("/api/payments/session?"+params2.toString(),{headers:authHeaders()});
   if(!data.sessionId)throw new Error("The server did not return a valid device-bound payment session.");
+  sessionStorage.setItem("414unlock_payment_launch",launch);
+  history.replaceState(null,"", "payment.html"+(state?"?state="+encodeURIComponent(state):""));
   renderSession(data);
  }catch(error){
   if(/sign in|session|authentication/i.test(error.message)){accountRedirect();return;}
@@ -76,6 +78,7 @@ continueButton.addEventListener("click",async function(){
   if(!auth.code)throw new Error("The server did not issue a one-time return code.");
   var callback=new URL(String(cfg.APP_CALLBACK||"414unlock://auth/callback"));
   callback.searchParams.set("code",auth.code);callback.searchParams.set("state",state);callback.searchParams.set("paymentSessionId",session.sessionId);
+  sessionStorage.removeItem("414unlock_payment_launch");
   location.href=callback.toString();
  }catch(error){setMessage(error.message||"Could not return securely to 414Unlock. Reopen the app to refresh payment status.","error");continueButton.disabled=false;continueButton.innerHTML='Continue in app <span>↗</span>';}
 });
