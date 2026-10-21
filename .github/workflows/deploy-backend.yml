@@ -48,8 +48,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "$CLOUDFLARE_ACCOUNT_ID" || -z "$CLOUDFLARE_API_TOKEN" || -z "$RESEND_API_KEY" || -z "$FROM_EMAIL" || -z "$ADMIN_EMAIL" || -z "$WORKERS_SUBDOMAIN" ]]; then
-            echo "::error::A required setting is missing. Add CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, RESEND_API_KEY and FROM_EMAIL as GitHub Actions secrets, then provide admin_email and workers_subdomain when running this workflow."
+          if [[ -z "$CLOUDFLARE_ACCOUNT_ID" || -z "$CLOUDFLARE_API_TOKEN" || -z "$RESEND_API_KEY" || -z "$FROM_EMAIL" || -z "$ADMIN_EMAIL" || -z "$WORKERS_SUBDOMAIN" || -z "$SQUASHBERRYPAY_TOPUP_URL" ]]; then
+            echo "::error::A required setting is missing. Add CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, RESEND_API_KEY and FROM_EMAIL as GitHub Actions secrets; add the SQUASHBERRYPAY_TOPUP_URL repository variable; and provide admin_email and workers_subdomain when running this workflow."
             exit 1
           fi
           if [[ ! "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]]; then
@@ -62,6 +62,10 @@ jobs:
           fi
           if [[ ! "$WORKERS_SUBDOMAIN" =~ ^[a-zA-Z0-9-]+$ ]]; then
             echo "::error::The workers.dev subdomain should contain only letters, digits and hyphens."
+            exit 1
+          fi
+          if [[ "$SQUASHBERRYPAY_TOPUP_URL" != https://* ]]; then
+            echo "::error::SQUASHBERRYPAY_TOPUP_URL must be an HTTPS SquashberryPay custom-amount checkout URL."
             exit 1
           fi
 
