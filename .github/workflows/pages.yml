@@ -1,4 +1,4 @@
-name: Deploy 414Unlock Website
+name: Validate 414Unlock Website
 
 on:
   push:
@@ -8,23 +8,17 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: github-pages
+  group: validate-414unlock
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
+  validate:
     runs-on: ubuntu-latest
     steps:
       - name: Check out site source
         uses: actions/checkout@v4
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
       - name: Syntax-check website and Worker JavaScript
         run: |
           node --check account.js
@@ -32,13 +26,9 @@ jobs:
           node --check payment.js
           node --check review.js
           node --check worker/src/index.js
-      - name: Stage public website only
+      - name: Confirm payment assets exist
         run: |
-          mkdir -p _site
-          cp index.html account.html account.js verify.html verify.js payment.html payment.js payment.css review.html review.js terms.html privacy.html site.css site-config.js _site/
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-      - name: Deploy Pages
-        uses: actions/deploy-pages@v4
+          test -s payment.html
+          test -s payment.css
+          test -s payment.js
+          test -s worker/migrations/0002_payments.sql
