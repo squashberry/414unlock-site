@@ -16,7 +16,19 @@ export default {
       if (!isOriginAllowed(origin, env)) return json({ error: "ORIGIN_NOT_ALLOWED", message: "This origin is not permitted." }, 403, headers);
       const path = new URL(request.url).pathname;
       if (request.method === "GET" && path === "/api/health") {
-        const storageReady = Boolean(env.DB && env.DOCUMENTS);
+        let databaseReady = false;
+        if (env.DB) {
+          try {
+            const tableCheck = await env.DB.prepare(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','verification_submissions','payment_sessions','wallets','wallet_transactions','topup_requests','service_orders')"
+            ).all();
+            const names = new Set((tableCheck.results || []).map((row) => row.name));
+            databaseReady = ["users","verification_submissions","payment_sessions","wallets","wallet_transactions","topup_requests","service_orders"].every((name) => names.has(name));
+          } catch (_) {
+            databaseReady = false;
+          }
+        }
+        const storageReady = Boolean(databaseReady && env.DOCUMENTS);
         const authReady = typeof env.JWT_SECRET === "string" && env.JWT_SECRET.length >= 32;
         const ready = storageReady && authReady;
         return json({
@@ -24,7 +36,7 @@ export default {
           service: "414unlock-api",
           version: "wallet-v1",
           checks: {
-            database: Boolean(env.DB),
+            database: databaseReady,
             privateDocuments: Boolean(env.DOCUMENTS),
             authentication: authReady,
             emailDelivery: Boolean(env.RESEND_API_KEY && env.FROM_EMAIL),
