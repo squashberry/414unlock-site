@@ -42,7 +42,7 @@ The Worker must allow the exact site origin \`https://squashberry.github.io\` an
 - \`POST /api/verification/submit\` — validate and privately store the multipart document submission.
 - \`GET /api/admin/submissions\` and \`POST /api/admin/submissions/:id/review\` — administrator-only review queue and decision endpoint.
 
-The desktop app should redeem the one-time code through a dedicated API endpoint. It must verify the state nonce generated locally before exchanging the code. Never pass an access token or document contents in a redirect URL.
+The desktop app should redeem the one-time code through a dedicated API endpoint. It must verify the state nonce generated locally before exchanging the code. After returning from payment, the desktop app must call /api/payments/status and POST the currently detected serial/IMEI/UDID to /api/payments/validate-device. Never pass a raw device identifier, access token, or document contents in a redirect URL.
 
 ## Cloudflare backend setup
 
