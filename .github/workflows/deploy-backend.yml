@@ -48,12 +48,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for key in CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN RESEND_API_KEY FROM_EMAIL ADMIN_EMAIL WORKERS_SUBDOMAIN; do
-            if [[ -z "${!key// /}" ]]; then
-              echo "::error::Required setting $key is missing. See worker/README.md for the required GitHub Actions secrets and workflow inputs."
-              exit 1
-            fi
-          done
+          if [[ -z "$CLOUDFLARE_ACCOUNT_ID" || -z "$CLOUDFLARE_API_TOKEN" || -z "$RESEND_API_KEY" || -z "$FROM_EMAIL" || -z "$ADMIN_EMAIL" || -z "$WORKERS_SUBDOMAIN" ]]; then
+            echo "::error::A required setting is missing. Add CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, RESEND_API_KEY and FROM_EMAIL as GitHub Actions secrets, then provide admin_email and workers_subdomain when running this workflow."
+            exit 1
+          fi
           if [[ ! "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]]; then
             echo "::error::CLOUDFLARE_ACCOUNT_ID must be the 32-character Cloudflare Account ID from the account you intend to deploy into."
             exit 1
@@ -175,9 +173,17 @@ jobs:
         run: |
           set -euo pipefail
           SECRET_FILE="$RUNNER_TEMP/worker-secrets.json"
-          wrangler secret list --name "$WORKER_NAME" > "$SECRET_FILE" || printf '[]' > "$SECRET_FILE"
+          SECRET_NAMES="$RUNNER_TEMP/worker-secret-names.txt"
+          wrangler secret list --name "$WORKER_NAME" > "$SECRET_FILE"
+          node - "$SECRET_FILE" > "$SECRET_NAMES" <<'NODE'
+          const fs = require('node:fs');
+          let list = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (!Array.isArray(list)) list = list.result || list.secrets || list.items || [];
+          if (!Array.isArray(list)) throw new Error('Unexpected output from wrangler secret list; refusing to rotate existing secrets.');
+          for (const item of list) if (item && typeof item.name === 'string') console.log(item.name);
+          NODE
           has_secret() {
-            grep -Eq '"name"[[:space:]]*:[[:space:]]*"'\"'$1'\"'"' "$SECRET_FILE"
+            grep -Fxq "$1" "$SECRET_NAMES"
           }
           if ! has_secret JWT_SECRET; then
             openssl rand -hex 32 | wrangler secret put JWT_SECRET --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
