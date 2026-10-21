@@ -26,6 +26,7 @@ export default {
       if (request.method === "POST" && path === "/api/payments/session") return await createPaymentSession(request, env, headers);
       if (request.method === "GET" && path === "/api/payments/session") return await getPaymentSession(request, env, headers, new URL(request.url));
       if (request.method === "GET" && path === "/api/payments/status") return await getPaymentStatus(request, env, headers, new URL(request.url));
+      if (request.method === "POST" && path === "/api/payments/validate-device") return await validatePaymentDevice(request, env, headers);
       if (request.method === "POST" && path === "/api/payments/verify-code") return await verifyPaymentCode(request, env, headers);
       if (request.method === "GET" && path === "/api/verification/status") return await verificationStatus(request, env, headers);
       if (request.method === "POST" && path === "/api/verification/submit") return await submitVerification(request, env, headers);
@@ -363,6 +364,32 @@ async function getPaymentStatus(request, env, headers, url) {
       row.status = "expired";
     }
     return json({ ok: true, sessionId: row.id, status: row.status, verified: row.status === "verified", paymentReference: row.payment_reference, deviceModel: row.device_model, identifierKind: row.identifier_kind, maskedIdentifier: row.masked_identifier, expiresAt: row.expires_at, paidAt: row.paid_at }, 200, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+
+async function validatePaymentDevice(request, env, headers) {
+  try {
+    const user = await readToken(request, env);
+    const body = await readJson(request);
+    const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
+    const identifierKind = typeof body.identifierKind === "string" ? body.identifierKind.trim().toLowerCase() : "";
+    const rawIdentifier = typeof body.identifier === "string" ? body.identifier.trim() : "";
+    const identifier = rawIdentifier.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    if (!/^[a-f0-9]{32}$/.test(sessionId)) throw new ApiError(400, "INVALID_PAYMENT_SESSION", "The payment session reference is invalid.");
+    if (!["serial", "imei", "udid"].includes(identifierKind)) throw new ApiError(400, "INVALID_IDENTIFIER_KIND", "A supported device identifier type is required.");
+    if (identifierKind === "imei" && !/^\d{14,16}$/.test(identifier)) throw new ApiError(400, "INVALID_DEVICE_IDENTIFIER", "The detected IMEI format is invalid.");
+    if (identifierKind === "serial" && !/^[A-Z0-9]{6,64}$/.test(identifier)) throw new ApiError(400, "INVALID_DEVICE_IDENTIFIER", "The detected serial number format is invalid.");
+    if (identifierKind === "udid" && !/^[A-Z0-9]{20,64}$/.test(identifier)) throw new ApiError(400, "INVALID_DEVICE_IDENTIFIER", "The detected UDID format is invalid.");
+    const row = await env.DB.prepare("SELECT id,identifier_kind,identifier_fingerprint,device_model,status,payment_reference,masked_identifier FROM payment_sessions WHERE id=? AND user_id=?")
+      .bind(sessionId, user.id).first();
+    if (!row) throw new ApiError(404, "PAYMENT_SESSION_NOT_FOUND", "The payment session was not found for this account.");
+    if (row.status !== "verified") throw new ApiError(409, "PAYMENT_NOT_VERIFIED", "The payment for this device session has not been verified.");
+    const fingerprint = await keyedHash("device:" + identifierKind + ":" + identifier, env);
+    if (identifierKind !== row.identifier_kind || !constantTimeEqual(fingerprint, row.identifier_fingerprint)) {
+      throw new ApiError(403, "DEVICE_MISMATCH", "The payment is not linked to the currently connected device. Reconnect the original device or start a new session.");
+    }
+    return json({ ok: true, authorized: true, status: "verified", sessionId: row.id, paymentReference: row.payment_reference, deviceModel: row.device_model, identifierKind: row.identifier_kind, maskedIdentifier: row.masked_identifier }, 200, headers);
   } catch (error) { throwOrReturn(error, headers); }
 }
 
