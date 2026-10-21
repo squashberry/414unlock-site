@@ -28,6 +28,8 @@ jobs:
           node --check dashboard.js
           node --check admin.js
           node --check worker/src/index.js
+      - name: Test wallet migrations and ledger triggers
+        run: python -m unittest discover -s worker/tests -v
       - name: Confirm payment assets exist
         run: |
           test -s payment.html
