@@ -20,7 +20,8 @@ Generate a long random JWT secret. The public Pages site origin is https://squas
 - POST /api/payments/session — authenticated desktop app creates a 30-minute payment session using deviceModel, identifierKind (serial/imei/udid) and identifier. The account must have approved account verification. The server returns an opaque sessionId, launchToken and unique paymentReference. The raw device identifier is not stored; the Worker computes a keyed fingerprint and stores only a masked suffix.
 - GET /api/payments/session?launch=... — authenticated website retrieves the session's device preview and masked identifier.
 - POST /api/payments/verify-code — authenticated website submits launchToken and confirmationCode. The Worker delegates verification to a configured server-side SquashberryPay adapter. It verifies the returned status and payment reference match, then marks that exact session as verified.
-- GET /api/payments/status?sessionId=... — desktop app re-checks the server-side payment state after returning from the browser.
+- GET /api/payments/status?sessionId=... — desktop app re-checks server-side payment state after returning from the browser.
+- POST /api/payments/validate-device — desktop app posts the currently detected identifier in the HTTPS request body; the server recomputes its keyed fingerprint and confirms both the paid session and the connected device match.
 
 ### SquashberryPay adapter contract — must be confirmed before production
 
