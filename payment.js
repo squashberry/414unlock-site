@@ -44,11 +44,12 @@ payButton.addEventListener("click",function(){
  if(!session){setMessage("Load a valid device session from 414Unlock before starting payment.","error");return;}
  var checkout=String(cfg.SQUASHBERRYPAY_CHECKOUT_URL||"").trim();
  if(!checkout){setMessage("Checkout is not connected yet. Add the SquashberryPay checkout URL in site-config.js. The payment reference shown beside your device must be associated with the transaction by the checkout integration.","error");return;}
- if(checkout.indexOf("{reference}")!==-1)checkout=checkout.replace(/\{reference\}/g,encodeURIComponent(session.paymentReference));
+ var hasReferenceTemplate=checkout.indexOf("{reference}")!==-1;
+ if(hasReferenceTemplate)checkout=checkout.replace(/\{reference\}/g,encodeURIComponent(session.paymentReference));
  var target;
  try{target=new URL(checkout);if(target.protocol!=="https:")throw new Error("The checkout URL must use HTTPS.");}
  catch(_){setMessage("The configured SquashberryPay checkout URL is invalid. Please contact support.","error");return;}
- if(checkout.indexOf("{reference}")===-1){var refParam=String(cfg.SQUASHBERRYPAY_REFERENCE_PARAM||"").trim();if(refParam)target.searchParams.set(refParam,session.paymentReference);}
+ if(!hasReferenceTemplate){var refParam=String(cfg.SQUASHBERRYPAY_REFERENCE_PARAM||"").trim();if(refParam)target.searchParams.set(refParam,session.paymentReference);}
  window.open(target.toString(),"_blank","noopener,noreferrer");
  setMessage("SquashberryPay checkout opened. Complete the payment there, then return here and enter the confirmation code. Do not enter a code until the checkout confirms your payment.");
 });
