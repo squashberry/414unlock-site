@@ -1,14 +1,14 @@
 (function(){
 "use strict";
 var cfg=window.UNLOCK414_CONFIG||{},api=(cfg.API_BASE_URL||"").replace(/\/+$/,"");
-var params=new URLSearchParams(location.search),launch=params.get("launch")||sessionStorage.getItem("414unlock_payment_launch")||"",state=params.get("state")||"";
+var params=new URLSearchParams(location.search),launch=params.get("launch")||sessionStorage.getItem("414unlock_payment_launch")||"",state=params.get("state")||"",customCallback=params.get("callback")||"";
 var token=sessionStorage.getItem("414unlock_token"),session=null,verified=false;
 var message=document.getElementById("payment-message"),payButton=document.getElementById("pay-button"),verifyButton=document.getElementById("verify-button"),codeInput=document.getElementById("payment-code"),continueButton=document.getElementById("continue-button"),verifiedPanel=document.getElementById("verified-panel");
 function setMessage(text,type){message.textContent=text;message.className="payment-message"+(type?" "+type:"");}
 function setApiConfigured(){return !!api&&!api.includes("YOUR_")&&!api.includes("example.workers.dev");}
 async function request(path,options){var response=await fetch(api+path,options||{}),data={};try{data=await response.json();}catch(_){}if(!response.ok)throw new Error(data.message||data.error||("Request failed ("+response.status+")"));return data;}
 function authHeaders(){return {"Authorization":"Bearer "+token};}
-function accountRedirect(){var next="account.html?flow=signin&return=payment&launch="+encodeURIComponent(launch);if(state)next+="&state="+encodeURIComponent(state);location.replace(next);}
+function accountRedirect(){var next="account.html?flow=signin&return=payment&launch="+encodeURIComponent(launch)+(state?"&state="+encodeURIComponent(state):"")+(customCallback?"&callback="+encodeURIComponent(customCallback):"");location.replace(next);}
 function maskedLabel(kind){return kind==="imei"?"IMEI (masked)":kind==="udid"?"UDID (masked)":"Serial number (masked)";}
 function renderSession(data){
  session=data;
@@ -77,7 +77,8 @@ continueButton.addEventListener("click",async function(){
   continueButton.disabled=true;continueButton.textContent="Preparing secure return…";
   var auth=await request("/api/auth/app-code",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},authHeaders()),body:"{}"});
   if(!auth.code)throw new Error("The server did not issue a one-time return code.");
-  var callback=new URL(String(cfg.APP_CALLBACK||"414unlock://auth/callback"));
+  var targetBase=(customCallback&&(customCallback.startsWith("414unlock://")||customCallback.startsWith("http://127.0.0.1:")||customCallback.startsWith("http://localhost:"))) ? customCallback : String(cfg.APP_CALLBACK||"414unlock://auth/callback");
+  var callback=new URL(targetBase);
   callback.searchParams.set("code",auth.code);callback.searchParams.set("state",state);callback.searchParams.set("paymentSessionId",session.sessionId);
   sessionStorage.removeItem("414unlock_payment_launch");
   location.href=callback.toString();
