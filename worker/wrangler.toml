@@ -17,11 +17,12 @@ migrations_dir = "migrations"
 binding = "DOCUMENTS"
 bucket_name = "414unlock-private-documents"
 
-# Set the following with wrangler secret put, never in this file:
-# JWT_SECRET       - at least 32 random bytes
-# RESEND_API_KEY   - transactional email API key
-# FROM_EMAIL       - verified sender identity in your email provider
-# ADMIN_EMAILS     - comma-separated review-admin email addresses
+# Set secrets with wrangler secret put, never in this file:
+# JWT_SECRET                 - at least 32 random bytes
+# RESEND_API_KEY             - transactional email API key
+# FROM_EMAIL                 - verified sender identity in your email provider
+# ADMIN_EMAILS               - comma-separated review-admin email addresses
+# DEVICE_DATA_ENCRYPTION_KEY - long random secret (32+ chars) used for AES-GCM device identifier encryption
 # Payment verification integration; set only after confirming SquashberryPay's actual API contract:
 # wrangler secret put SQUASHBERRYPAY_VERIFY_URL
 # wrangler secret put SQUASHBERRYPAY_API_KEY
