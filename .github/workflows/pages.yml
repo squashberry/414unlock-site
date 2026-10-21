@@ -25,6 +25,8 @@ jobs:
           node --check verify.js
           node --check payment.js
           node --check review.js
+          node --check dashboard.js
+          node --check admin.js
           node --check worker/src/index.js
       - name: Confirm payment assets exist
         run: |
@@ -32,3 +34,8 @@ jobs:
           test -s payment.css
           test -s payment.js
           test -s worker/migrations/0002_payments.sql
+          test -s worker/migrations/0003_wallet_orders.sql
+          test -s services.html
+          test -s portal.css
+          test -s dashboard.html
+          test -s admin.html
