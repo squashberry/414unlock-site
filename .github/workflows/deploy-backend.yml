@@ -1,0 +1,251 @@
+name: Deploy 414Unlock backend
+
+on:
+  workflow_dispatch:
+    inputs:
+      admin_email:
+        description: Email address that should have 414Unlock administrator access
+        required: true
+        type: string
+      workers_subdomain:
+        description: Cloudflare workers.dev subdomain for this account
+        required: true
+        default: squashberrypay
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: 414unlock-backend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+      ADMIN_EMAIL: ${{ inputs.admin_email }}
+      WORKERS_SUBDOMAIN: ${{ inputs.workers_subdomain }}
+      SQUASHBERRYPAY_TOPUP_URL: ${{ vars.SQUASHBERRYPAY_TOPUP_URL }}
+      WORKER_NAME: 414unlock-auth-api
+      D1_NAME: 414unlock-auth
+      R2_NAME: 414unlock-private-documents
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate deployment settings before changing infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN RESEND_API_KEY FROM_EMAIL ADMIN_EMAIL WORKERS_SUBDOMAIN; do
+            if [[ -z "${!key// /}" ]]; then
+              echo "::error::Required setting $key is missing. See worker/README.md for the required GitHub Actions secrets and workflow inputs."
+              exit 1
+            fi
+          done
+          if [[ ! "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID must be the 32-character Cloudflare Account ID from the account you intend to deploy into."
+            exit 1
+          fi
+          if [[ ! "$ADMIN_EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; then
+            echo "::error::Enter a valid administrator email address."
+            exit 1
+          fi
+          if [[ ! "$WORKERS_SUBDOMAIN" =~ ^[a-zA-Z0-9-]+$ ]]; then
+            echo "::error::The workers.dev subdomain should contain only letters, digits and hyphens."
+            exit 1
+          fi
+
+      - name: Install Wrangler and verify Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global wrangler@4
+          wrangler whoami
+
+      - name: Reuse or provision the D1 database
+        id: d1
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIST_FILE="$RUNNER_TEMP/d1-list.json"
+          wrangler d1 list --json > "$LIST_FILE"
+          DB_ID="$(node - "$LIST_FILE" "$D1_NAME" <<'NODE'
+          const fs = require('node:fs');
+          const file = process.argv[2], name = process.argv[3];
+          let parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (!Array.isArray(parsed)) {
+            parsed = parsed.result || parsed.databases || parsed.items || parsed.data || [];
+          }
+          if (!Array.isArray(parsed)) parsed = [];
+          const db = parsed.find(x => [x.name, x.database_name].some(v => v === name));
+          process.stdout.write(db ? String(db.uuid || db.database_id || db.id || '') : '');
+          NODE
+          )"
+          if [[ -z "$DB_ID" ]]; then
+            echo "Creating missing D1 database: $D1_NAME"
+            wrangler d1 create "$D1_NAME" --location weur
+            wrangler d1 list --json > "$LIST_FILE"
+            DB_ID="$(node - "$LIST_FILE" "$D1_NAME" <<'NODE'
+          const fs = require('node:fs');
+          const file = process.argv[2], name = process.argv[3];
+          let parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (!Array.isArray(parsed)) parsed = parsed.result || parsed.databases || parsed.items || parsed.data || [];
+          if (!Array.isArray(parsed)) parsed = [];
+          const db = parsed.find(x => [x.name, x.database_name].some(v => v === name));
+          process.stdout.write(db ? String(db.uuid || db.database_id || db.id || '') : '');
+          NODE
+            )"
+          fi
+          if [[ ! "$DB_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+            echo "::error::Could not resolve a valid D1 database ID for $D1_NAME. No deployment was performed."
+            exit 1
+          fi
+          echo "database_id=$DB_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Reuse or provision the private R2 bucket
+        shell: bash
+        run: |
+          set -euo pipefail
+          if wrangler r2 bucket info "$R2_NAME" --json > "$RUNNER_TEMP/r2-info.json" 2>/dev/null; then
+            echo "Using existing R2 bucket: $R2_NAME"
+          else
+            echo "Creating missing private R2 bucket: $R2_NAME"
+            wrangler r2 bucket create "$R2_NAME" --location weur
+            wrangler r2 bucket info "$R2_NAME" --json > "$RUNNER_TEMP/r2-info.json"
+          fi
+
+      - name: Create deployment config in the runner workspace
+        shell: bash
+        env:
+          D1_DATABASE_ID: ${{ steps.d1.outputs.database_id }}
+        run: |
+          set -euo pipefail
+          cat > worker/wrangler.deploy.toml <<TOML
+          name = "414unlock-auth-api"
+          main = "src/index.js"
+          compatibility_date = "2026-10-21"
+          workers_dev = true
+
+          [vars]
+          SITE_ORIGIN = "https://squashberry.github.io"
+          TERMS_VERSION = "2026-10-21"
+
+          [[d1_databases]]
+          binding = "DB"
+          database_name = "414unlock-auth"
+          database_id = "$D1_DATABASE_ID"
+          migrations_dir = "migrations"
+
+          [[r2_buckets]]
+          binding = "DOCUMENTS"
+          bucket_name = "414unlock-private-documents"
+          TOML
+          test -s worker/wrangler.deploy.toml
+          grep -q 'REPLACE_WITH_D1_DATABASE_ID' worker/wrangler.deploy.toml && {
+            echo "::error::Placeholder database ID remains in deploy configuration."
+            exit 1
+          } || true
+
+      - name: Apply tracked D1 migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          wrangler d1 migrations apply "$D1_NAME" --remote --config worker/wrangler.deploy.toml
+
+      - name: Deploy Worker code
+        shell: bash
+        run: |
+          set -euo pipefail
+          wrangler deploy --config worker/wrangler.deploy.toml
+
+      - name: Preserve generated secrets and configure mail and admin secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          SECRET_FILE="$RUNNER_TEMP/worker-secrets.json"
+          wrangler secret list --name "$WORKER_NAME" > "$SECRET_FILE" || printf '[]' > "$SECRET_FILE"
+          has_secret() {
+            grep -Eq '"name"[[:space:]]*:[[:space:]]*"'\"'$1'\"'"' "$SECRET_FILE"
+          }
+          if ! has_secret JWT_SECRET; then
+            openssl rand -hex 32 | wrangler secret put JWT_SECRET --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
+          fi
+          if ! has_secret DEVICE_DATA_ENCRYPTION_KEY; then
+            openssl rand -hex 32 | wrangler secret put DEVICE_DATA_ENCRYPTION_KEY --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
+          fi
+          printf '%s' "$RESEND_API_KEY" | wrangler secret put RESEND_API_KEY --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
+          printf '%s' "$FROM_EMAIL" | wrangler secret put FROM_EMAIL --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
+          printf '%s' "$ADMIN_EMAIL" | wrangler secret put ADMIN_EMAILS --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
+
+      - name: Health-check production API
+        id: health
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_BASE_URL="https://$WORKER_NAME.$WORKERS_SUBDOMAIN.workers.dev"
+          BODY_FILE="$RUNNER_TEMP/health.json"
+          for attempt in $(seq 1 10); do
+            STATUS="$(curl --silent --show-error --output "$BODY_FILE" --write-out '%{http_code}' "$API_BASE_URL/api/health" || true)"
+            if [[ "$STATUS" == "200" ]]; then
+              API_BASE_URL="$API_BASE_URL" node - "$BODY_FILE" <<'NODE'
+          const fs = require('node:fs');
+          const path = process.argv[2];
+          const d = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const required = ['database','privateDocuments','authentication','emailDelivery','adminAccess','deviceEncryption'];
+          const missing = required.filter(k => !d.checks || d.checks[k] !== true);
+          if (d.ok !== true || missing.length) {
+            console.error('API health checks incomplete:', missing.join(', ') || 'ok=false');
+            process.exit(1);
+          }
+          console.log('API health check passed for', process.env.API_BASE_URL);
+          NODE
+              echo "api_base_url=$API_BASE_URL" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::Production API health check failed. Check Worker deployment and secrets. Response body:"
+          cat "$BODY_FILE" || true
+          exit 1
+
+      - name: Configure the GitHub Pages frontend for the deployed API
+        shell: bash
+        env:
+          API_BASE_URL: ${{ steps.health.outputs.api_base_url }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'site-config.js';
+          let text = fs.readFileSync(path, 'utf8');
+          const api = process.env.API_BASE_URL;
+          const checkout = process.env.SQUASHBERRYPAY_TOPUP_URL || '';
+          if (!api || !api.startsWith('https://')) throw new Error('Health-checked HTTPS API URL is missing.');
+          function replaceString(key, value) {
+            const re = new RegExp('(^\\s*' + key + ':\\s*)"(?:[^"\\\\]|\\\\.)*"', 'm');
+            if (!re.test(text)) throw new Error('Could not locate ' + key + ' in site-config.js.');
+            text = text.replace(re, (_, start) => start + JSON.stringify(value));
+          }
+          replaceString('API_BASE_URL', api);
+          if (checkout) replaceString('SQUASHBERRYPAY_TOPUP_URL', checkout);
+          fs.writeFileSync(path, text, 'utf8');
+          NODE
+          if ! git diff --quiet -- site-config.js; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add site-config.js
+            git commit -m "Configure 414Unlock frontend for deployed API"
+            git push
+          fi
