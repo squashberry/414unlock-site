@@ -33,7 +33,7 @@
         var appCode=await request("/api/auth/app-code",{method:"POST",headers:{"Authorization":"Bearer "+data.token,"Content-Type":"application/json"},body:"{}"});
         if(!appCode.code)throw new Error("Could not create a one-time app handoff code.");
         finishAppLogin(appCode.code);
-      }else if(returnTarget==="payment"&&paymentLaunch){
+      }else if(returnTarget==="admin"){location.href="admin.html";return;}else if(returnTarget==="review"){location.href="review.html";return;}else if(returnTarget==="payment"&&paymentLaunch){
         var paymentUrl="payment.html?launch="+encodeURIComponent(paymentLaunch)+(appState?"&state="+encodeURIComponent(appState):"");
         location.href=paymentUrl;return;
       }else{location.href="dashboard.html";return;}
