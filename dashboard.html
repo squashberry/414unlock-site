@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f7f2"><meta name="robots" content="noindex,nofollow"><title>My wallet · 414Unlock</title><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="portal.css"><script src="site-config.js"></script><script defer src="dashboard.js"></script></head>
+<body class="portal-dashboard-body">
+<header class="topbar portal-topbar"><a class="brand" href="index.html"><span class="brand-mark">414</span><span class="brand-name">UNLOCK</span></a><nav class="topnav"><a href="index.html">Home</a><a href="services.html">Services & prices</a><a href="admin.html" hidden>Admin</a><a id="logout-link" href="account.html?flow=signin">Sign out</a></nav></header>
+<main class="portal-workspace">
+<div class="workspace-heading"><div><div class="eyebrow dark-eyebrow">YOUR PRIVATE WORKSPACE</div><h1>Wallet & services.</h1><p>Manage credit, submit service requests and follow progress in one place.</p></div><div class="account-pill"><span>✓</span><div id="account-email">Checking account…</div></div></div>
+<div id="system-banner" class="portal-banner" role="status" aria-live="polite" hidden></div>
+<div class="balance-row">
+<section class="wallet-balance-card"><span class="balance-kicker">AVAILABLE WALLET BALANCE</span><strong id="wallet-balance">—</strong><p>Your balance updates only after a payment or charge is verified by the server.</p><div class="balance-card-actions"><a class="portal-button portal-button-lime" href="#topup">＋ Add credit</a><a class="portal-button portal-button-outline" href="#new-order">Request service ↗</a></div></section>
+<section class="wallet-status-card"><div><span class="status-label">ACCOUNT STATUS</span><h3 id="verification-title">Checking verification…</h3><p id="verification-description">Your account status determines access to wallet and service requests.</p></div><div class="status-line"><i></i><span id="verification-state">CONNECTING</span></div><p><a class="record-link" href="verify.html">Review verification details ↗</a></p></section>
+</div>
+<div class="workspace-grid">
+<section id="topup" class="portal-panel">
+<div class="portal-panel-head"><div><h2>Add wallet credit</h2><p>Create a top-up request, pay through the official SquashberryPay route and submit its transaction reference. Credit is added after a manual payment check.</p></div><span class="panel-step">01 / WALLET</span></div>
+<form id="topup-form" class="portal-form">
+<div class="field"><label for="topup-amount">Amount (GMD / Dalasi)</label><input id="topup-amount" name="amount" type="number" min="50" max="100000" step="1" inputmode="numeric" placeholder="e.g. 3000" required><small>Minimum D50. Enter whole Dalasi. Do not create a request until you are ready to pay.</small></div>
+<div id="topup-message" class="portal-message" role="status" aria-live="polite"></div>
+<button id="topup-submit" class="portal-button portal-button-dark portal-submit" type="submit">Create top-up request <span>→</span></button>
+</form>
+<div id="topup-followup" class="topup-followup" hidden><h3>Top-up request created</h3><div id="topup-ref-display" class="topup-reference"></div><p id="topup-followup-copy">Use this request reference when paying. Then submit the SquashberryPay transaction reference below. Your wallet remains unchanged until admin confirms the payment.</p><a id="topup-checkout" class="portal-button portal-button-lime" href="#" target="_blank" rel="noopener noreferrer" hidden>Open SquashberryPay checkout ↗</a>
+<form id="submit-provider-ref-form" class="portal-form"><div class="field"><label for="provider-reference">SquashberryPay transaction reference / ID</label><input id="provider-reference" name="providerReference" maxlength="120" autocomplete="off" placeholder="Transaction reference after payment" required></div><div id="reference-message" class="portal-message" role="status" aria-live="polite"></div><button id="reference-submit" class="portal-button portal-button-dark portal-submit" type="submit">Submit payment reference <span>→</span></button></form></div>
+</section>
+<section id="new-order" class="portal-panel">
+<div class="portal-panel-head"><div><h2>Request an iPhone service</h2><p>Choose a published price. Your request is charged from available credit and queued for manual review.</p></div><span class="panel-step">02 / SERVICE</span></div>
+<form id="order-form" class="portal-form">
+<div class="field"><label for="service-type">Service type</label><select id="service-type" name="serviceType" required><option value="unlock">iPhone unlock service</option><option value="imei_check">IMEI check</option></select></div>
+<div class="field"><label for="model-key">Price band</label><select id="model-key" name="modelKey" required><option value="iphone_6">iPhone 6 / 6 Plus / 6S / SE — D1,400</option><option value="iphone_7">iPhone 7 / 7 Plus — D1,600</option><option value="iphone_8">iPhone 8 / 8 Plus — D1,900</option><option value="iphone_x">iPhone X — D2,200</option><option value="iphone_xr">iPhone XR / XS / XS Max — D2,500</option><option value="iphone_11_12">iPhone 11 & 12 Series — D3,000</option><option value="iphone_13_14">iPhone 13 & 14 Series — D3,500</option><option value="iphone_15">iPhone 15 Series — D5,000</option><option value="iphone_16">iPhone 16 Series — D6,500</option></select></div>
+<div class="field"><label for="exact-model">Exact iPhone model</label><input id="exact-model" name="deviceModel" maxlength="120" placeholder="e.g. iPhone 13 Pro Max" required><small>Enter the model shown in Settings or on the device.</small></div>
+<div class="form-two-col"><div class="field"><label for="identifier-kind">Device identifier type</label><select id="identifier-kind" name="identifierKind" required><option value="serial">Serial number</option><option value="imei">IMEI</option></select></div><div class="field"><label for="device-identifier">Serial / IMEI</label><input id="device-identifier" name="identifier" maxlength="64" autocomplete="off" placeholder="Device identifier" required></div></div>
+<div class="field"><label for="issue-description">Device issue / request notes</label><textarea id="issue-description" name="issueDescription" maxlength="1000" placeholder="Describe the device status and what you need reviewed." required></textarea></div>
+<div id="fast-row" class="portal-check-row"><input id="fast-service" name="fastService" type="checkbox"><label for="fast-service">Add fast service for <b>+D1,000</b>. Priority is requested, not guaranteed; delivery still depends on eligibility.</label></div>
+<div id="no-signal-row" class="portal-check-row"><input id="no-signal-confirmed" name="noSignalConfirmed" type="checkbox" required><label for="no-signal-confirmed">I understand this listed unlock service is <b>Wi-Fi-only / no signal</b> after service.</label></div>
+<div class="portal-check-row"><input id="ownership-confirmed" name="ownershipConfirmed" type="checkbox" required><label for="ownership-confirmed">I own this device or have explicit permission from its owner to request this service, and the details I submitted are accurate.</label></div>
+<div class="quote-bar"><span id="quote-label">Estimated service charge</span><strong id="order-quote">D1,400</strong></div>
+<small class="field-help">A completed IMEI check for the same device may qualify for a D150 credit against an unlock started within 7 days. The server calculates final charges; your balance will be shown before the request is accepted.</small>
+<div id="order-message" class="portal-message" role="status" aria-live="polite"></div>
+<button id="order-submit" class="portal-button portal-button-dark portal-submit" type="submit">Submit service request <span>→</span></button>
+</form>
+</section>
+<section class="portal-panel"><div class="portal-panel-head"><div><h2>Wallet activity</h2><p>Recent credits, service charges and refunds.</p></div><span class="panel-step">LEDGER</span></div><div id="transaction-list" class="records-stack"><div class="empty-records">Sign in to load wallet activity.</div></div></section>
+<section class="portal-panel"><div class="portal-panel-head"><div><h2>Top-up requests</h2><p>Follow the payment verification status for each request.</p></div><span class="panel-step">PAYMENTS</span></div><div id="topup-list" class="records-stack"><div class="empty-records">No top-up requests loaded.</div></div></section>
+<section class="portal-panel workspace-wide"><div class="portal-panel-head"><div><h2>My service requests</h2><p>Your device identifiers are masked here. Full device details are reserved for authorised administrators handling your request.</p></div><span class="panel-step">SERVICE HISTORY</span></div><div id="order-list" class="records-stack"><div class="empty-records">No service requests loaded.</div></div></section>
+</div>
+</main>
+<footer class="footer portal-footer"><div class="wrap footer-inner"><a class="brand" href="index.html"><span class="brand-mark">414</span><span class="brand-name">UNLOCK</span></a><div class="footer-links"><a href="services.html">Prices</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><button id="refresh-wallet" class="plain-refresh" type="button">Refresh account</button></div><span>© 414Unlock</span></div></footer>
+</body></html>
