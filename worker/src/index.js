@@ -14,9 +14,27 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
     try {
       if (!isOriginAllowed(origin, env)) return json({ error: "ORIGIN_NOT_ALLOWED", message: "This origin is not permitted." }, 403, headers);
+      const path = new URL(request.url).pathname;
+      if (request.method === "GET" && path === "/api/health") {
+        const storageReady = Boolean(env.DB && env.DOCUMENTS);
+        const authReady = typeof env.JWT_SECRET === "string" && env.JWT_SECRET.length >= 32;
+        const ready = storageReady && authReady;
+        return json({
+          ok: ready,
+          service: "414unlock-api",
+          version: "wallet-v1",
+          checks: {
+            database: Boolean(env.DB),
+            privateDocuments: Boolean(env.DOCUMENTS),
+            authentication: authReady,
+            emailDelivery: Boolean(env.RESEND_API_KEY && env.FROM_EMAIL),
+            adminAccess: Boolean(env.ADMIN_EMAILS && env.ADMIN_EMAILS.trim()),
+            deviceEncryption: typeof env.DEVICE_DATA_ENCRYPTION_KEY === "string" && env.DEVICE_DATA_ENCRYPTION_KEY.length >= 32
+          }
+        }, ready ? 200 : 503, headers);
+      }
       if (!env.DB || !env.DOCUMENTS) return json({ error: "SERVICE_NOT_CONFIGURED", message: "The account service is not fully configured." }, 503, headers);
       if (!env.JWT_SECRET || env.JWT_SECRET.length < 32) return json({ error: "SERVICE_NOT_CONFIGURED", message: "The account service is not fully configured." }, 503, headers);
-      const path = new URL(request.url).pathname;
       if (request.method === "POST" && path === "/api/auth/signup") return await signup(request, env, headers);
       if (request.method === "POST" && path === "/api/auth/verify-email") return await verifyEmail(request, env, headers);
       if (request.method === "POST" && path === "/api/auth/login") return await login(request, env, headers);
