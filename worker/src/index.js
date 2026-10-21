@@ -23,6 +23,10 @@ export default {
       if (request.method === "GET" && path === "/api/auth/me") return await getMe(request, env, headers);
       if (request.method === "POST" && path === "/api/auth/app-code") return await createAppCode(request, env, headers);
       if (request.method === "POST" && path === "/api/auth/redeem-app-code") return await redeemAppCode(request, env, headers);
+      if (request.method === "POST" && path === "/api/payments/session") return await createPaymentSession(request, env, headers);
+      if (request.method === "GET" && path === "/api/payments/session") return await getPaymentSession(request, env, headers, new URL(request.url));
+      if (request.method === "GET" && path === "/api/payments/status") return await getPaymentStatus(request, env, headers, new URL(request.url));
+      if (request.method === "POST" && path === "/api/payments/verify-code") return await verifyPaymentCode(request, env, headers);
       if (request.method === "GET" && path === "/api/verification/status") return await verificationStatus(request, env, headers);
       if (request.method === "POST" && path === "/api/verification/submit") return await submitVerification(request, env, headers);
       if (request.method === "GET" && path === "/api/admin/submissions") return await listSubmissions(request, env, headers);
@@ -295,6 +299,121 @@ async function reviewSubmission(request, env, headers, id) {
     return json({ ok: true, status, message: "Application " + status + ". Uploaded document deleted after review." }, 200, headers);
   } catch (error) { throwOrReturn(error, headers); }
 }
+
+async function createPaymentSession(request, env, headers) {
+  try {
+    const user = await readToken(request, env);
+    const body = await readJson(request);
+    const deviceModel = typeof body.deviceModel === "string" ? body.deviceModel.trim().slice(0, 120) : "";
+    const identifierKind = typeof body.identifierKind === "string" ? body.identifierKind.trim().toLowerCase() : "";
+    const rawIdentifier = typeof body.identifier === "string" ? body.identifier.trim() : "";
+    const identifier = rawIdentifier.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    if (deviceModel.length < 2) throw new ApiError(400, "INVALID_DEVICE_MODEL", "A recognized device model is required.");
+    if (!["serial", "imei", "udid"].includes(identifierKind)) throw new ApiError(400, "INVALID_IDENTIFIER_KIND", "Supply a supported device identifier type.");
+    if (identifierKind === "imei" && !/^\d{14,16}$/.test(identifier)) throw new ApiError(400, "INVALID_DEVICE_IDENTIFIER", "The detected IMEI format is invalid.");
+    if (identifierKind === "serial" && !/^[A-Z0-9]{6,64}$/.test(identifier)) throw new ApiError(400, "INVALID_DEVICE_IDENTIFIER", "The detected serial number format is invalid.");
+    if (identifierKind === "udid" && !/^[A-Z0-9]{20,64}$/.test(identifier)) throw new ApiError(400, "INVALID_DEVICE_IDENTIFIER", "The detected UDID format is invalid.");
+    const approved = await env.DB.prepare("SELECT id FROM verification_submissions WHERE user_id = ? AND status = 'approved' ORDER BY submitted_at DESC LIMIT 1").bind(user.id).first();
+    if (!approved) throw new ApiError(403, "VERIFICATION_REQUIRED", "Complete account verification before creating a payment session.");
+    const now = Math.floor(Date.now() / 1000);
+    const id = randomHex(16);
+    const launchToken = randomHex(24);
+    const launchTokenHash = await keyedHash("payment-launch:" + launchToken, env);
+    const identifierFingerprint = await keyedHash("device:" + identifierKind + ":" + identifier, env);
+    const paymentReference = "414U-" + randomHex(8).toUpperCase();
+    const expiresAt = now + 1800;
+    const maskedIdentifier = "•••• •••• " + identifier.slice(-4);
+    await env.DB.prepare("INSERT INTO payment_sessions (id,user_id,launch_token_hash,device_model,identifier_kind,identifier_fingerprint,masked_identifier,payment_reference,status,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?,'pending',?,?)")
+      .bind(id, user.id, launchTokenHash, deviceModel, identifierKind, identifierFingerprint, maskedIdentifier, paymentReference, now, expiresAt).run();
+    return json({ ok: true, sessionId: id, launchToken, paymentReference, deviceModel, identifierKind, maskedIdentifier, status: "pending", expiresAt }, 201, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+async function findPaymentSessionByLaunch(request, env, launchToken) {
+  const user = await readToken(request, env);
+  if (typeof launchToken !== "string" || !/^[a-f0-9]{48}$/.test(launchToken)) throw new ApiError(400, "INVALID_PAYMENT_SESSION", "The payment session is invalid. Start again from 414Unlock.");
+  const tokenHash = await keyedHash("payment-launch:" + launchToken, env);
+  const row = await env.DB.prepare("SELECT id,user_id,launch_token_hash,device_model,identifier_kind,masked_identifier,payment_reference,status,created_at,expires_at,paid_at,provider_reference FROM payment_sessions WHERE launch_token_hash = ? AND user_id = ?").bind(tokenHash, user.id).first();
+  if (!row) throw new ApiError(404, "PAYMENT_SESSION_NOT_FOUND", "This payment session does not belong to the signed-in account.");
+  const now = Math.floor(Date.now() / 1000);
+  if (row.expires_at <= now && row.status === "pending") {
+    await env.DB.prepare("UPDATE payment_sessions SET status='expired' WHERE id=? AND status='pending'").bind(row.id).run();
+    row.status = "expired";
+  }
+  return { user, row };
+}
+
+async function getPaymentSession(request, env, headers, url) {
+  try {
+    const { row } = await findPaymentSessionByLaunch(request, env, url.searchParams.get("launch"));
+    return json({ ok: true, sessionId: row.id, paymentReference: row.payment_reference, deviceModel: row.device_model, identifierKind: row.identifier_kind, maskedIdentifier: row.masked_identifier, status: row.status, expiresAt: row.expires_at, paidAt: row.paid_at }, 200, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+async function getPaymentStatus(request, env, headers, url) {
+  try {
+    const user = await readToken(request, env);
+    const sessionId = url.searchParams.get("sessionId") || "";
+    if (!/^[a-f0-9]{32}$/.test(sessionId)) throw new ApiError(400, "INVALID_PAYMENT_SESSION", "The payment session reference is invalid.");
+    const row = await env.DB.prepare("SELECT id,user_id,device_model,identifier_kind,masked_identifier,payment_reference,status,expires_at,paid_at FROM payment_sessions WHERE id=? AND user_id=?").bind(sessionId, user.id).first();
+    if (!row) throw new ApiError(404, "PAYMENT_SESSION_NOT_FOUND", "The payment session was not found for this account.");
+    const now = Math.floor(Date.now() / 1000);
+    if (row.expires_at <= now && row.status === "pending") {
+      await env.DB.prepare("UPDATE payment_sessions SET status='expired' WHERE id=? AND status='pending'").bind(row.id).run();
+      row.status = "expired";
+    }
+    return json({ ok: true, sessionId: row.id, status: row.status, verified: row.status === "verified", paymentReference: row.payment_reference, deviceModel: row.device_model, identifierKind: row.identifier_kind, maskedIdentifier: row.masked_identifier, expiresAt: row.expires_at, paidAt: row.paid_at }, 200, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+async function verifyPaymentCode(request, env, headers) {
+  try {
+    const body = await readJson(request);
+    const code = typeof body.confirmationCode === "string" ? body.confirmationCode.trim() : "";
+    if (code.length < 3 || code.length > 100) throw new ApiError(400, "INVALID_PAYMENT_CODE", "Enter the confirmation code SquashberryPay sent you.");
+    const { user, row } = await findPaymentSessionByLaunch(request, env, body.launchToken);
+    if (row.status === "verified") return json({ ok: true, verified: true, status: "verified", sessionId: row.id, paymentReference: row.payment_reference }, 200, headers);
+    if (row.status === "expired") throw new ApiError(410, "PAYMENT_SESSION_EXPIRED", "This payment session has expired. Start a new session from 414Unlock.");
+    const urlValue = env.SQUASHBERRYPAY_VERIFY_URL || "";
+    const apiKey = env.SQUASHBERRYPAY_API_KEY || "";
+    if (!urlValue || !apiKey) throw new ApiError(503, "PAYMENT_PROVIDER_NOT_CONFIGURED", "SquashberryPay code verification is not connected yet. No payment has been marked as verified.");
+    let verifyUrl;
+    try { verifyUrl = new URL(urlValue); } catch (_) { throw new ApiError(503, "PAYMENT_PROVIDER_NOT_CONFIGURED", "The SquashberryPay verification endpoint is not configured correctly."); }
+    if (verifyUrl.protocol !== "https:") throw new ApiError(503, "PAYMENT_PROVIDER_NOT_CONFIGURED", "The SquashberryPay verification endpoint must use HTTPS.");
+    const now = Math.floor(Date.now() / 1000);
+    const attemptWindow = await env.DB.prepare("SELECT COUNT(*) AS total FROM payment_code_attempts WHERE payment_session_id=? AND attempted_at>?").bind(row.id, now - 900).first();
+    if (Number(attemptWindow && attemptWindow.total || 0) >= 8) throw new ApiError(429, "TOO_MANY_PAYMENT_ATTEMPTS", "Too many attempts. Start a new session or contact support.");
+    let providerResponse;
+    try {
+      providerResponse = await fetch(verifyUrl.toString(), {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ confirmationCode: code, reference: row.payment_reference })
+      });
+    } catch (_) {
+      throw new ApiError(502, "PAYMENT_PROVIDER_UNAVAILABLE", "SquashberryPay could not be reached. No payment was marked as verified.");
+    }
+    let providerData = {};
+    try { providerData = await providerResponse.json(); } catch (_) {}
+    if (!providerResponse.ok) {
+      await env.DB.prepare("INSERT INTO payment_code_attempts (id,payment_session_id,attempted_at,succeeded) VALUES (?,?,?,0)").bind(randomHex(12), row.id, now).run();
+      if (providerResponse.status === 400 || providerResponse.status === 401 || providerResponse.status === 404) throw new ApiError(400, "PAYMENT_NOT_CONFIRMED", "SquashberryPay did not confirm a paid transaction for this payment reference.");
+      throw new ApiError(502, "PAYMENT_PROVIDER_UNAVAILABLE", "Payment verification is temporarily unavailable. No payment was marked as verified.");
+    }
+    const providerStatus = String(providerData.status || "").toLowerCase();
+    const providerReference = String(providerData.transactionId || providerData.transaction_id || providerData.providerReference || "").slice(0, 160);
+    if (providerData.verified !== true || providerStatus !== "paid" || providerData.reference !== row.payment_reference || !providerReference) {
+      await env.DB.prepare("INSERT INTO payment_code_attempts (id,payment_session_id,attempted_at,succeeded) VALUES (?,?,?,0)").bind(randomHex(12), row.id, now).run();
+      throw new ApiError(400, "PAYMENT_NOT_CONFIRMED", "SquashberryPay did not confirm a paid transaction for this exact device payment reference.");
+    }
+    const updated = await env.DB.prepare("UPDATE payment_sessions SET status='verified',provider_reference=?,paid_at=? WHERE id=? AND user_id=? AND status='pending' AND expires_at>?")
+      .bind(providerReference, now, row.id, user.id, now).run();
+    if (!updated.meta || updated.meta.changes !== 1) throw new ApiError(409, "PAYMENT_STATE_CHANGED", "The payment session changed while verifying. Refresh its status before continuing.");
+    await env.DB.prepare("INSERT INTO payment_code_attempts (id,payment_session_id,attempted_at,succeeded) VALUES (?,?,?,1)").bind(randomHex(12), row.id, now).run();
+    return json({ ok: true, verified: true, status: "verified", sessionId: row.id, paymentReference: row.payment_reference, verifiedAt: now }, 200, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
 function throwOrReturn(error, headers) {
   if (error instanceof ApiError) throw error;
   if (error instanceof Error) throw error;
