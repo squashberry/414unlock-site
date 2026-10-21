@@ -23,7 +23,7 @@
         var verified=await request("/api/auth/verify-email",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:pendingEmail,code:emailCode.value.trim()})});
         if(!verified.token)throw new Error("The server did not return an authenticated session.");
         sessionStorage.setItem("414unlock_token",verified.token);sessionStorage.setItem("414unlock_flow","signup");
-        location.href="verify.html?source=signup"+(returnToApp?"&return=app&state="+encodeURIComponent(appState)+(appCallback?"&callback="+encodeURIComponent(appCallback):""):"");return;
+        location.href="verify.html?source=signup"+(returnToApp?"&return=app&state="+encodeURIComponent(appState)+(appCallback?"&callback="+encodeURIComponent(appCallback):""):"&return=dashboard");return;
       }
       var emailValue=document.getElementById("email").value.trim().toLowerCase(),passwordValue=passwordInput.value;
       var data=await request("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:emailValue,password:passwordValue})});
@@ -36,7 +36,7 @@
       }else if(returnTarget==="payment"&&paymentLaunch){
         var paymentUrl="payment.html?launch="+encodeURIComponent(paymentLaunch)+(appState?"&state="+encodeURIComponent(appState):"");
         location.href=paymentUrl;return;
-      }else{showMessage("You are signed in. You can close this tab and return to the 414Unlock website.","success");submit.classList.add("hidden");}
+      }else{location.href="dashboard.html";return;}
     }catch(err){showMessage(err.message||"Unable to complete the request. Please try again.","error");}
     finally{setBusy(false);}
   });
