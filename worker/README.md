@@ -1,65 +1,66 @@
 # 414Unlock Cloudflare Worker API
 
-This is the server-side API for the 414Unlock website. It is separate from GitHub Pages. The website must not collect real identity documents or accept payment codes until this Worker is deployed, configured and reviewed.
+This is the server-side API for the 414Unlock website. It is separate from GitHub Pages. Do not collect real identity documents, device identifiers, or payment references until this Worker is deployed, configured and reviewed.
 
 ## Provision resources
 
-1. Create a Cloudflare D1 database named 414unlock-auth.
-2. Create a private R2 bucket named 414unlock-private-documents.
-3. Put the new D1 database ID into wrangler.toml.
-4. Apply migrations in order, including 0002_payments.sql, for example: wrangler d1 migrations apply 414unlock-auth --remote.
-5. Set secrets with wrangler secret put JWT_SECRET, RESEND_API_KEY, FROM_EMAIL, and ADMIN_EMAILS.
-6. Ensure FROM_EMAIL is a sender verified with Resend. Never put these secrets into GitHub.
-7. Deploy with wrangler deploy.
-8. Set API_BASE_URL in the public site-config.js to the resulting Worker URL.
+1. Create a Cloudflare D1 database named `414unlock-auth`.
+2. Create a private R2 bucket named `414unlock-private-documents`.
+3. Put the real D1 database ID into `wrangler.toml`.
+4. Apply migrations in order: `0001_init.sql`, `0002_payments.sql`, and `0003_wallet_orders.sql`. Example: `wrangler d1 migrations apply 414unlock-auth --remote`.
+5. Set secrets with `wrangler secret put JWT_SECRET`, `RESEND_API_KEY`, `FROM_EMAIL`, `ADMIN_EMAILS`, and `DEVICE_DATA_ENCRYPTION_KEY`.
+6. Make sure `FROM_EMAIL` is a sender verified with Resend. Use your own secure random values for the secrets; never commit them to GitHub.
+7. Deploy with `wrangler deploy`.
+8. Set `API_BASE_URL` in the public `site-config.js` to the resulting Worker URL.
+9. Configure `SQUASHBERRYPAY_TOPUP_URL` only after verifying the real checkout URL, amount format and reference handling. This browser value must not contain any secret.
 
-Generate a long random JWT secret. The public Pages site origin is https://squashberry.github.io. CORS is origin checked. If you use a different front-end URL, update the Worker configuration.
+The `DEVICE_DATA_ENCRYPTION_KEY` must be a high-entropy random secret of at least 32 characters. The Worker derives an AES-GCM key from it. Back it up securely: if it is lost, previously stored device identifiers cannot be decrypted. Do not rotate it without a planned re-encryption migration. The public Pages origin is `https://squashberry.github.io`; CORS is origin-checked.
 
-## Payment session API
+## Wallet and top-up workflow
 
-- POST /api/payments/session — authenticated desktop app creates a 30-minute payment session using deviceModel, identifierKind (serial/imei/udid) and identifier. The account must have approved account verification. The server returns an opaque sessionId, launchToken and unique paymentReference. The raw device identifier is not stored; the Worker computes a keyed fingerprint and stores only a masked suffix.
-- GET /api/payments/session?launch=... — authenticated website retrieves the session's device preview and masked identifier.
-- POST /api/payments/verify-code — authenticated website submits launchToken and confirmationCode. The Worker delegates verification to a configured server-side SquashberryPay adapter. It verifies the returned status and payment reference match, then marks that exact session as verified.
-- GET /api/payments/status?sessionId=... — desktop app re-checks server-side payment state after returning from the browser.
-- POST /api/payments/validate-device — desktop app posts the currently detected identifier in the HTTPS request body; the server recomputes its keyed fingerprint and confirms both the paid session and the connected device match.
+- `GET /api/wallet/overview` — authenticated user's balance, ledger entries, top-up requests and masked service-order history.
+- `POST /api/wallet/topups` — creates a top-up request for D50–D100,000 and returns a unique `414T-` request reference. It does not credit the wallet.
+- `POST /api/wallet/topups/:id/submit-reference` — authenticated user submits the SquashberryPay transaction reference. The request becomes pending for review.
+- `GET /api/admin/queue` — admin-only queue for payment review and active service requests; full device identifiers are decrypted only for a configured administrator.
+- `POST /api/admin/topups/:id/review` — admin approves/rejects a pending top-up. An approved status transition credits the wallet through a database trigger and creates one ledger entry. Check the actual transaction inside SquashberryPay before approving.
+- `POST /api/orders` — creates a priced service request after approved account verification, authorisation acknowledgements, and a sufficient wallet balance. The price is calculated on the server, not trusted from the browser.
+- `POST /api/admin/orders/:id/status` — admin moves a service request through submitted → registered → processing → completed, or rejects it. A request rejected before processing starts is refunded automatically; rejection after processing starts does not trigger an automatic refund.
+
+The account verification workflow gates top-ups and service requests. Customers must assert that they own the device or have permission from its owner. Full serial/IMEI values are encrypted in D1 using `DEVICE_DATA_ENCRYPTION_KEY`; customer responses show only the masked suffix. Only `ADMIN_EMAILS` can use the admin queue. Do not expose raw identifiers in URLs or logs.
+
+Model pricing on the server reflects the published 414Unlock list (whole GMD): D1,400; D1,600; D1,900; D2,200; D2,500; D3,000; D3,500; D5,000; and D6,500 by model band. IMEI checks are D150; fast service adds D1,000. An eligible completed IMEI check may be applied once against the same device's unlock request if used within seven days.
+
+## Existing desktop payment session API
+
+- `POST /api/payments/session` — authenticated desktop app creates a 30-minute payment session using deviceModel, identifierKind (serial/imei/udid) and identifier. The raw identifier for this payment session is not stored; the Worker computes a keyed fingerprint and stores only a masked suffix.
+- `GET /api/payments/session?launch=...` — authenticated website retrieves the device preview and masked identifier.
+- `POST /api/payments/verify-code` — delegates code verification to the configured server-side SquashberryPay adapter.
+- `GET /api/payments/status?sessionId=...` — desktop app re-checks server-side payment state.
+- `POST /api/payments/validate-device` — desktop app confirms that the paid session matches its currently detected device.
 
 ### SquashberryPay adapter contract — must be confirmed before production
 
-No provider endpoint has been assumed to exist. The Worker deliberately rejects code verification with a configuration error until these are configured as secrets:
+No provider endpoint has been assumed to exist. The existing desktop payment-code feature deliberately rejects verification until the actual provider API is configured as secrets:
 
-- SQUASHBERRYPAY_VERIFY_URL — the actual official SquashberryPay server-side endpoint that can validate a confirmation code.
-- SQUASHBERRYPAY_API_KEY — server-only authentication credential for that endpoint.
+- `SQUASHBERRYPAY_VERIFY_URL` — the official server-side endpoint that validates a confirmation code.
+- `SQUASHBERRYPAY_API_KEY` — server-only authentication credential.
 
-The current adapter sends a POST over HTTPS containing:
-{
-  "confirmationCode": "user-entered code",
-  "reference": "414Unlock payment reference"
-}
+The current adapter sends a POST over HTTPS containing `confirmationCode` and `reference`. It expects a successful JSON response with `verified: true`, `status: "paid"`, the same `reference`, and a non-empty transaction identifier. Confirm the endpoint, authentication method, request and response contract with SquashberryPay before enabling it. Never simulate payment verification locally.
 
-It expects a successful JSON response containing:
-{
-  "verified": true,
-  "status": "paid",
-  "reference": "the same 414Unlock payment reference",
-  "transactionId": "provider transaction identifier"
-}
-
-The exact endpoint, authentication method, request fields, and response format must be adjusted to match the real SquashberryPay API before enabling this feature. A code typed by a user, a screenshot, a frontend message, or a successful HTTP response alone must never mark payment as verified. The provider must confirm that the payment is successful and linked to the exact payment reference/session. If SquashberryPay only sends email codes but exposes no server-side verification endpoint or signed webhook, design a trusted backend redemption flow with SquashberryPay instead; do not simulate verification locally.
-
-Configure the checkout URL in site-config.js only after confirming how the checkout receives a unique payment reference. If SquashberryPay supports a reference query parameter, configure SQUASHBERRYPAY_REFERENCE_PARAM accordingly. Otherwise, integrate through its supported metadata or checkout-session API so payments cannot be mismatched across devices.
+The wallet top-up workflow in this revision is deliberately **manual-review**: a transaction reference submitted by the user is not proof of payment; an administrator must confirm payment in SquashberryPay. It does not assume an undocumented provider API or treat a URL redirect as payment confirmation.
 
 ## Other API routes
 
-Signup, email code verification, login, current account, single-use desktop handoff codes, verification status/submission, administrator queue, private document access and approve/reject are also present.
+Signup, email code verification, login, current account, single-use desktop handoff codes, verification status/submission, administrator identity-review queue, private document access and approve/reject are also present.
 
-Documents are uploaded to private R2, are not published as public URLs, and are deleted from R2 after an administrator decision. Application metadata remains in D1 for an audit trail. Review admins are determined by the comma-separated ADMIN_EMAILS secret.
+Documents are uploaded to private R2, never published as public URLs, and are deleted from R2 after an administrator decision. Application metadata remains in D1 for an audit trail. Review admins are configured by the comma-separated `ADMIN_EMAILS` secret.
 
 ## Before production
 
-- Configure Cloudflare rate limiting/WAF for authentication and upload endpoints.
-- Review data-protection obligations in all countries served; publish complete data-controller, processor, retention, deletion and support-contact details.
-- Add account recovery, verification-code resend, decision notification emails, abuse monitoring and backup/restore procedures.
-- Independently review the authentication and payment authorization implementation before real users submit documents or codes.
-- Add file-signature scanning, secure document retention/deletion controls, and a manual fallback for uncertain AI/OCR matching.
-- Never expose document keys, full serial numbers/IMEIs, or access tokens to browser URLs or logs.
-- After the desktop app redeems a browser handoff code, it must call /api/payments/status for the original session ID and confirm verified status and its locally stored device/session state before continuing.
+- Provision real Cloudflare resources and run all migrations; do not leave placeholder IDs or secrets.
+- Configure rate limiting/WAF for authentication, top-up and upload endpoints.
+- Verify the SquashberryPay payment process end-to-end; manual review must not be advertised as automated.
+- Review data-protection requirements; publish support contacts, controller/processor details, retention and deletion periods.
+- Independently review authentication, balance ledger, payment authorization and admin access before accepting real users.
+- Add account recovery, verification-code resend, decision notifications, abuse monitoring, backups and restore tests.
+- Use a secure operational process for device-authorisation evidence and delete full identifiers when no longer needed.
