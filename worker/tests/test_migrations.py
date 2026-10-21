@@ -2,7 +2,7 @@ import pathlib
 import sqlite3
 import unittest
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 MIGRATIONS = ROOT / "migrations"
 
 
