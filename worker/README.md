@@ -64,3 +64,24 @@ Documents are uploaded to private R2, never published as public URLs, and are de
 - Independently review authentication, balance ledger, payment authorization and admin access before accepting real users.
 - Add account recovery, verification-code resend, decision notifications, abuse monitoring, backups and restore tests.
 - Use a secure operational process for device-authorisation evidence and delete full identifiers when no longer needed.
+
+
+## Production deployment through GitHub Actions
+
+The backend source is committed, but this repository does not contain Cloudflare credentials. To deploy it without hard-coding credentials or database IDs:
+
+1. In GitHub, open **Settings → Secrets and variables → Actions → Secrets** and add:
+   - `CLOUDFLARE_API_TOKEN` — a Cloudflare API token scoped to the intended account, with Workers Scripts Edit, D1 Edit, R2 storage edit, and the account permissions required to inspect the Workers.dev hostname.
+   - `CLOUDFLARE_ACCOUNT_ID` — the 32-character account ID for the exact account you want to use.
+   - `RESEND_API_KEY` — your Resend API key.
+   - `FROM_EMAIL` — a sender identity verified with Resend.
+2. Under **Settings → Secrets and variables → Actions → Variables**, add `SQUASHBERRYPAY_TOPUP_URL`. This must be the official **custom-amount** SquashberryPay checkout link you created in the SquashberryPay merchant dashboard. A fixed-price product link cannot collect arbitrary wallet top-up amounts. The checkout URL is public configuration, so do not put secrets in it.
+3. Open **Actions → Deploy 414Unlock backend → Run workflow**. Enter the email address that should have administrator access. Use the Workers.dev account subdomain shown in Cloudflare; the default input is `squashberrypay`.
+4. The workflow checks its required settings before infrastructure changes, reuses the named D1 database if it exists, creates it only if missing, does the same for the R2 bucket, applies all tracked migrations, deploys the Worker, preserves existing JWT and device-encryption secrets (generating them only when absent), configures Resend and administrator access, then checks `/api/health`. Only after a successful health check does it write the API URL into `site-config.js`.
+5. Confirm the latest GitHub Pages build publishes the updated `site-config.js`, then test signup, email verification, admin login, wallet top-up and service ordering with a small non-production test before accepting real payments or device details.
+
+### Payment handling is deliberately manual
+
+The configured SquashberryPay URL must allow the customer to pay the exact amount requested. 414Unlock does not currently send the request reference into SquashberryPay's checkout session or verify a payment automatically through a documented server-to-server SquashberryPay API. The customer therefore submits SquashberryPay's transaction reference, and an administrator must look up and confirm the actual successful payment in SquashberryPay before approving the top-up. Approval credits the matching wallet exactly once; a submitted reference alone never adds credit. Do not set the variable to a fixed-amount checkout and assume the `amount` URL parameter will change that payment.
+
+The deployment workflow itself cannot create a SquashberryPay merchant payment link because that link belongs to your merchant account and must be configured by you in the SquashberryPay dashboard. Likewise, it cannot succeed without the Cloudflare API token, Resend key and verified sender being added to GitHub Actions secrets first.
