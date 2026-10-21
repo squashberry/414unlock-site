@@ -523,7 +523,7 @@ async function createServiceOrder(request, env, headers) {
     await ensureWallet(user.id, env, now);
     try {
       await env.DB.prepare(
-        "INSERT INTO service_orders (id,user_id,service_key,model_key,device_model,identifier_kind,identifier_ciphertext,identifier_fingerprint,masked_identifier,issue_description,fast_service,amount_due,status,ownership_confirmed,no_signal_confirmed,check_credit_order_id,check_credit_used_at,provider_reference,admin_note,created_at,updated_at,processed_at,completed_at,reviewed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'submitted',1,?,?,NULL,NULL,?,?,NULL,NULL,NULL)"
+        "INSERT INTO service_orders (id,user_id,service_key,model_key,device_model,identifier_kind,identifier_ciphertext,identifier_fingerprint,masked_identifier,issue_description,fast_service,amount_due,status,ownership_confirmed,no_signal_confirmed,check_credit_order_id,check_credit_used_at,provider_reference,admin_note,created_at,updated_at,processed_at,completed_at,reviewed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'submitted',1,?,?,NULL,NULL,NULL,?,?,NULL,NULL,NULL)"
       ).bind(id, user.id, serviceKey, modelKey, deviceModel, identifierKind, ciphertext, fingerprint, maskedIdentifier, issueDescription, fastService ? 1 : 0, amountDue, 1, serviceKey === "unlock" ? 1 : 0, checkCreditOrderId, now, now).run();
     } catch (error) {
       const message = String(error && error.message || "");
