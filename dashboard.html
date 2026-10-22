@@ -97,6 +97,36 @@ footer{background:#fff;padding-bottom:30px}
 .foot .brand{color:var(--ink)}.foot .mark{background:var(--blue);color:#fff}
 .links{display:flex;gap:22px;align-items:center}
 .plain-refresh{font:600 14px var(--body);color:var(--blue);background:none;border:0;padding:0;cursor:pointer}.plain-refresh:hover{text-decoration:underline}
+.tabs{position:relative;display:flex;gap:6px;margin-bottom:32px;border-bottom:2px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs:after{content:"";position:absolute;bottom:0;left:var(--x,0);width:var(--w,0);height:4px;border-radius:4px 4px 0 0;background:var(--blue);transition:left .35s cubic-bezier(.3,.8,.2,1),width .35s cubic-bezier(.3,.8,.2,1)}
+.tabs button{flex:0 0 auto;border:0;background:none;padding:14px 20px;font:600 16px var(--body);color:var(--mute);cursor:pointer;transition:color .2s}
+.tabs button:hover{color:var(--ink)}.tabs button.on{color:var(--blue)}
+.view{display:none}
+[data-view=overview] #v-overview,[data-view=credit] #v-credit,[data-view=request] #v-request,[data-view=history] #v-history{display:block;animation:view .45s cubic-bezier(.2,.8,.2,1) both}
+#v-credit,#v-request{max-width:760px}
+@keyframes view{from{opacity:0;transform:translateY(14px)}}
+.next{background:#fff;border-radius:20px;padding:34px;border-left:8px solid var(--blue);display:grid;gap:4px;justify-items:start}
+.next .lbl{font-size:14px;font-weight:600;color:var(--mute)}.next h2{font-size:clamp(26px,3.4vw,38px);font-weight:800}
+.next p{margin:6px 0 16px;color:var(--mute);max-width:36em}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:22px}
+.tile{display:block;background:#fff;border-radius:18px;padding:26px;transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s;animation:view .55s both;animation-delay:calc(var(--i)*90ms + 120ms)}
+.tile:hover{transform:translateY(-6px);box-shadow:0 18px 32px #0d133722}
+.tile b{display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--blue);color:#fff;font:800 18px var(--disp);margin-bottom:14px;transition:transform .3s}
+.tile:hover b{transform:rotate(-12deg) scale(1.12)}
+.tile h3{font-size:22px;font-weight:750;margin-bottom:6px}.tile p{margin:0;color:var(--mute);font-size:15px}
+.subtabs{display:flex;gap:8px;margin-bottom:26px;flex-wrap:wrap}
+.subtabs button{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:9px 18px;font:600 15px var(--body);color:var(--mute);cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+.subtabs button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+#v-history .rec{display:none;max-width:760px;margin:0}
+[data-h=wallet] #h-wallet,[data-h=topups] #h-topups,[data-h=orders] #h-orders{display:block;animation:view .4s both}
+.record-row{animation:view .4s both}
+.bal>*,.vcard{animation:view .7s cubic-bezier(.2,.8,.2,1) both}.bal>:nth-child(2){animation-delay:.08s}.bal>:nth-child(3){animation-delay:.16s}.bal>:nth-child(4){animation-delay:.24s}.vcard{animation-delay:.2s}
+.st i{box-shadow:0 0 0 0 #aab6f088;animation:pulse 2s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 8px #aab6f000}}
+.btn{transition:background .15s,transform .15s}.btn:active{transform:scale(.97)}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+@media(max-width:700px){.tiles{grid-template-columns:1fr}.next{padding:24px 20px}.tabs button{padding:13px 14px}}
 @media(max-width:980px){.hero-row,.forms{grid-template-columns:1fr}.records{grid-template-columns:1fr;gap:44px}}
 @media(max-width:600px){.wrap{width:calc(100% - 32px)}.hide-sm{display:none}nav{gap:14px}.panel{padding:22px 18px}.ph h2{font-size:23px}.two{grid-template-columns:1fr}.btn{width:100%}nav .btn{width:auto}.acts{display:grid}.vcard{padding:22px}.hero-row{padding-bottom:44px}.quote strong{font-size:28px}}
 </style>
@@ -112,10 +142,14 @@ footer{background:#fff;padding-bottom:30px}
 <section class="vcard"><div><span class="lbl">Account status</span><h3 id="verification-title">Checking verification…</h3><p id="verification-description">Your account status determines access to wallet and service requests.</p></div><div class="st"><i></i><span id="verification-state">CONNECTING</span></div><a href="verify.html">Review verification details</a></section>
 </div>
 </div></header>
-<main><div class="wrap">
+<main id="app" data-view="overview" data-h="wallet"><div class="wrap">
 <div id="system-banner" class="portal-banner" role="status" aria-live="polite" hidden></div>
-<div class="forms">
-<section id="topup" class="panel">
+<div class="tabs" id="tabs" role="tablist"><button type="button" role="tab" data-v="overview">Overview</button><button type="button" role="tab" data-v="credit">Add credit</button><button type="button" role="tab" data-v="request">New request</button><button type="button" role="tab" data-v="history">History</button></div>
+<div class="view" id="v-overview">
+<div class="next"><span class="lbl">Your next step</span><h2 id="next-title">Loading your account…</h2><p id="next-copy">One moment while we check your wallet and verification status.</p><a id="next-cta" class="btn btn-b" href="#topup" hidden>Continue</a></div>
+<div class="tiles"><a class="tile" href="#topup" style="--i:0"><b>1</b><h3>Add credit</h3><p>Pay through SquashberryPay and submit the reference.</p></a><a class="tile" href="#new-order" style="--i:1"><b>2</b><h3>Request a service</h3><p>Choose a price band and send your device details.</p></a><a class="tile" href="#history" style="--i:2"><b>3</b><h3>Follow progress</h3><p>Wallet activity, top-ups and every service request.</p></a></div>
+</div>
+<div class="view" id="v-credit"><section id="topup" class="panel">
 <div class="ph"><span class="n">1</span><div><h2>Add wallet credit</h2><p>Create a top-up request, pay through the official SquashberryPay route and submit its transaction reference. Credit is added after a manual payment check.</p></div></div>
 <form id="topup-form">
 <div class="field"><label for="topup-amount">Amount (GMD / Dalasi)</label><input id="topup-amount" name="amount" type="number" min="50" max="100000" step="1" inputmode="numeric" placeholder="e.g. 3000" required><small>Minimum D50. Enter whole Dalasi. Do not create a request until you are ready to pay.</small></div>
@@ -124,8 +158,8 @@ footer{background:#fff;padding-bottom:30px}
 </form>
 <div id="topup-followup" class="follow" hidden><h3>Top-up request created</h3><div id="topup-ref-display" class="ref"></div><p id="topup-followup-copy">Keep this 414Unlock request reference for your records. The checkout does not automatically receive it. Pay the exact requested amount through the configured official custom-amount checkout, then submit SquashberryPay’s transaction reference. Your wallet remains unchanged until an administrator confirms the payment.</p><a id="topup-checkout" class="btn btn-b" href="#" target="_blank" rel="noopener noreferrer" hidden>Open SquashberryPay checkout</a>
 <form id="submit-provider-ref-form"><div class="field"><label for="provider-reference">SquashberryPay transaction reference / ID</label><input id="provider-reference" name="providerReference" maxlength="120" autocomplete="off" placeholder="Transaction reference after payment" required></div><div id="reference-message" class="portal-message" role="status" aria-live="polite"></div><button id="reference-submit" class="btn btn-b submit" type="submit">Submit payment reference</button></form></div>
-</section>
-<section id="new-order" class="panel">
+</section></div>
+<div class="view" id="v-request"><section id="new-order" class="panel">
 <div class="ph"><span class="n">2</span><div><h2>Request an iPhone service</h2><p>Choose a published price. Your request is charged from available credit and queued for manual review.</p></div></div>
 <form id="order-form">
 <div class="field"><label for="service-type">Service type</label><select id="service-type" name="serviceType" required><option value="unlock">iPhone unlock service</option><option value="imei_check">IMEI check</option></select></div>
@@ -141,14 +175,29 @@ footer{background:#fff;padding-bottom:30px}
 <div id="order-message" class="portal-message" role="status" aria-live="polite"></div>
 <button id="order-submit" class="btn btn-b submit" type="submit">Submit service request</button>
 </form>
-</section>
-</div>
-<div class="records">
-<section class="rec"><h2>Wallet activity</h2><p>Recent credits, service charges and refunds.</p><div id="transaction-list"><div class="empty-records">Sign in to load wallet activity.</div></div></section>
-<section class="rec"><h2>Top-up requests</h2><p>Follow the payment verification status for each request.</p><div id="topup-list"><div class="empty-records">No top-up requests loaded.</div></div></section>
-<section class="rec"><h2>My service requests</h2><p>Device identifiers are masked here. Full details are reserved for authorised administrators handling your request.</p><div id="order-list"><div class="empty-records">No service requests loaded.</div></div></section>
-</div>
+</section></div>
+<div class="view" id="v-history"><div class="subtabs" id="subtabs"><button type="button" data-h="wallet">Wallet activity</button><button type="button" data-h="topups">Top-up requests</button><button type="button" data-h="orders">Service requests</button></div>
+<section class="rec" id="h-wallet"><h2>Wallet activity</h2><p>Recent credits, service charges and refunds.</p><div id="transaction-list"><div class="empty-records">Sign in to load wallet activity.</div></div></section><section class="rec" id="h-topups"><h2>Top-up requests</h2><p>Follow the payment verification status for each request.</p><div id="topup-list"><div class="empty-records">No top-up requests loaded.</div></div></section><section class="rec" id="h-orders"><h2>My service requests</h2><p>Device identifiers are masked here. Full details are reserved for authorised administrators handling your request.</p><div id="order-list"><div class="empty-records">No service requests loaded.</div></div></section></div>
 </div></main>
 <footer><div class="stripe" aria-hidden="true"></div><div class="wrap foot"><a class="brand" href="index.html"><span class="mark">414</span><span>Unlock</span></a><div class="links"><a href="services.html">Prices</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><button id="refresh-wallet" class="plain-refresh" type="button">Refresh account</button></div><span>© 414Unlock</span></div></footer>
+<script>(function(){var $=function(i){return document.getElementById(i)},app=$("app"),tabs=$("tabs"),btns=[].slice.call(tabs.querySelectorAll("button")),subs=[].slice.call($("subtabs").querySelectorAll("button")),map={"#overview":"overview","#topup":"credit","#new-order":"request","#history":"history"},rev={overview:"#overview",credit:"#topup",request:"#new-order",history:"#history"};
+function mark(){var o=tabs.querySelector(".on");if(o){tabs.style.setProperty("--x",o.offsetLeft+"px");tabs.style.setProperty("--w",o.offsetWidth+"px")}}
+function setView(v,push){app.dataset.view=v;btns.forEach(function(b){b.classList.toggle("on",b.dataset.v===v)});mark();if(push&&location.hash!==rev[v])history.replaceState(null,"",rev[v])}
+function setSub(h){app.dataset.h=h;subs.forEach(function(b){b.classList.toggle("on",b.dataset.h===h)})}
+btns.forEach(function(b){b.addEventListener("click",function(){setView(b.dataset.v,true)})});subs.forEach(function(b){b.addEventListener("click",function(){setSub(b.dataset.h)})});
+window.addEventListener("hashchange",function(){if(map[location.hash]){setView(map[location.hash]);tabs.scrollIntoView({behavior:"smooth",block:"start"})}});window.addEventListener("resize",mark);
+var fu=$("topup-followup");new MutationObserver(function(){if(!fu.hidden)setView("credit",true)}).observe(fu,{attributes:true,attributeFilter:["hidden"]});
+var vs=$("verification-state"),wb=$("wallet-balance"),fin=0,busy=false,last="";
+function next(){var v=(vs.textContent||"").trim().toUpperCase(),t,c,l,h;
+if(v===""||v==="CONNECTING"){t="Loading your account…";c="One moment while we check your wallet and verification status.";l=""}
+else if(v==="OFFLINE"){t="We can’t reach the account service";c="Your wallet and requests can’t be shown right now. Try again in a little while.";l=""}
+else if(v==="APPROVED"&&!fin){t="Add credit to get started";c="Your account is verified. Top up your wallet, then send your first device.";l="Add credit";h="#topup"}
+else if(v==="APPROVED"){t="Ready to request a service";c="Choose a price band and send the device details. The charge comes straight from your wallet.";l="Request a service";h="#new-order"}
+else if(v==="PENDING"){t="Verification is in review";c="Top-ups and requests unlock as soon as the team approves your account.";l="View verification details";h="verify.html"}
+else{t="Finish verification";c="Submit your identity or professional document so the team can review your account.";l="Start verification";h="verify.html"}
+$("next-title").textContent=t;$("next-copy").textContent=c;var a=$("next-cta");a.hidden=!l;if(l){a.textContent=l;a.setAttribute("href",h)}}
+new MutationObserver(next).observe(vs,{childList:true,characterData:true,subtree:true});
+new MutationObserver(function(){if(busy)return;var t=wb.textContent,m=/^GMD ([\d,]+)$/.exec(t);if(!m||t===last)return;last=t;fin=+m[1].replace(/,/g,"");next();if(matchMedia("(prefers-reduced-motion:reduce)").matches)return;busy=true;var t0=performance.now();(function f(n){var k=Math.min(1,(n-t0)/900);wb.textContent="GMD "+Math.round(fin*(1-Math.pow(1-k,3))).toLocaleString("en-GM");if(k<1)requestAnimationFrame(f);else{wb.textContent=t;setTimeout(function(){busy=false},0)}})(t0)}).observe(wb,{childList:true,characterData:true,subtree:true});
+setSub("wallet");setView(map[location.hash]||"overview");next();document.fonts&&document.fonts.ready.then(mark)})();</script>
 </body>
 </html>
