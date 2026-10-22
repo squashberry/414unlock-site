@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1f8f"><meta name="robots" content="noindex,nofollow">
+<meta name="description" content="Follow the progress of one 414Unlock service request.">
+<title>Service request · 414Unlock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600&display=swap"><link rel="stylesheet" href="414.css"><script src="site-config.js"></script><style>.rtop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.rtop h2{font-size:clamp(26px,3vw,34px);font-weight:750}.meta{color:var(--mute);margin:6px 0 0}
+.tl{list-style:none;margin:26px 0;padding:0}.tl li{position:relative;padding:0 0 26px 52px;color:var(--mute);animation:in .45s both;animation-delay:calc(var(--i)*90ms)}
+.tl li:before{content:"";position:absolute;left:0;top:2px;width:30px;height:30px;border-radius:50%;background:#fff;border:3px solid var(--line)}
+.tl li:after{content:"";position:absolute;left:14px;top:34px;bottom:2px;width:2px;background:var(--line)}.tl li:last-child:after{display:none}
+.tl b{display:block;font:700 20px var(--disp);color:var(--ink)}
+.tl .done:before{background:var(--green);border-color:var(--green)}.tl .done:after{background:var(--green)}
+.tl .now:before{background:var(--blue);border-color:var(--blue);animation:pulse 2s infinite}.tl .bad:before{background:var(--red);border-color:var(--red)}
+@keyframes in{from{opacity:0;transform:translateY(8px)}}@keyframes pulse{0%,100%{box-shadow:0 0 0 0 #0b1f8f44}50%{box-shadow:0 0 0 9px #0b1f8f00}}
+@media(prefers-reduced-motion:reduce){.tl li,.tl .now:before{animation:none}}</style>
+</head>
+<body>
+<div class="stripe" aria-hidden="true"></div>
+<header class="band"><div class="wrap">
+<div class="nav-in"><a class="brand" href="index.html" aria-label="414Unlock home"><span class="mark">414</span><span>Unlock</span></a><nav aria-label="Main navigation"><a class="hide-sm" href="services.html">Services &amp; prices</a><a class="hide-sm" href="guide.html">Service guide</a><a class="hide-sm" href="contact.html">Support</a><a href="account.html?flow=signin">Sign in</a><a class="btn btn-w" href="account.html?flow=signup">Create account</a></nav></div>
+<div class="head"><h1>Your service request</h1><p>Follow every stage from submission to completion.</p></div>
+</div></header>
+<main><div class="wrap narrow">
+<a class="back" href="dashboard.html#history">← Back to my requests</a>
+<div id="msg" class="message" role="status" aria-live="polite" style="margin-top:18px"></div>
+<section id="detail" class="sheet hidden" style="margin-top:18px">
+<div class="rtop"><div><h2 id="r-title">Service request</h2><p id="r-sub" class="meta"></p></div><span id="r-state" class="pill"></span></div>
+<ol id="r-steps" class="tl"></ol><div id="r-facts" class="know"></div>
+<div id="r-note" class="amber hidden"><b>Note from the team</b><span id="r-note-t"></span></div></section>
+</div></main>
+
+<footer><div class="wrap foot"><a class="brand" href="index.html"><span class="mark">414</span><span>Unlock</span></a><div class="links"><a href="services.html">Prices</a><a href="guide.html">Guide</a><a href="contact.html">Support</a><a href="policy.html">Ownership policy</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></div><span>© 414Unlock · The Gambia</span></div><div class="stripe" style="margin-top:28px" aria-hidden="true"></div></footer>
+<script>(function(){var cfg=window.UNLOCK414_CONFIG||{},api=(cfg.API_BASE_URL||"").replace(/\/+$/,""),tok=sessionStorage.getItem("414unlock_token"),id=new URLSearchParams(location.search).get("id")||"",$=function(i){return document.getElementById(i)};
+function say(t){var m=$("msg");m.textContent=t;m.className="message show error"}
+function lab(s){return String(s||"").replace(/_/g," ").replace(/\b\w/g,function(x){return x.toUpperCase()})}
+function fmt(n){return "GMD "+Number(n||0).toLocaleString("en-GM",{maximumFractionDigits:0})}
+function dt(n){try{return n?new Date(Number(n)*1000).toLocaleString():"—"}catch(_){return "—"}}
+function el(t,c,x){var n=document.createElement(t);if(c)n.className=c;if(x!==undefined)n.textContent=x;return n}
+var ST=[["submitted","Submitted","Your request is in the queue and the charge has been taken from your wallet."],["registered","Registered","The team has registered your request."],["processing","Processing","The service is being carried out. Refunds are not automatic from this point."],["completed","Completed","Finished. Your iPhone is ready to be set up with your own Apple ID."]];
+if(!tok){location.replace("account.html?flow=signin");return}
+if(!id)return say("No request was selected. Open one from your dashboard.");
+if(!(api&&!api.includes("YOUR_")&&!api.includes("example.workers.dev")))return say("The secure account service is not connected yet, so request details cannot be loaded.");
+fetch(api+"/api/orders/"+encodeURIComponent(id),{headers:{Authorization:"Bearer "+tok}}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.message||d.error||"Request failed ("+r.status+")");return d})}).then(function(d){show(d.order||d)}).catch(function(e){say(e.message||"Could not load this request.")});
+function show(o){var s=o.status||"submitted",rej=s==="rejected",ix=Math.max(0,ST.findIndex(function(x){return x[0]===s})),L=$("r-steps");
+$("r-title").textContent=(o.serviceName||lab(o.serviceKey)||"Service")+" · "+(o.deviceModel||"iPhone");$("r-sub").textContent="Submitted "+dt(o.createdAt);var p=$("r-state");p.textContent=lab(s);p.className="pill "+s;
+var rows=rej?[ST[0],["rejected","Rejected","The request was rejected. If this happened before processing started, the charge is returned to your wallet automatically."]]:ST;
+rows.forEach(function(r,i){var li=el("li",rej?(i===0?"done":"bad"):(i<ix?"done":i===ix?"now":""));li.style.setProperty("--i",i);li.appendChild(el("b",null,r[1]));li.appendChild(document.createTextNode(r[2]));L.appendChild(li)});
+var F=$("r-facts");[["Service",o.serviceName||lab(o.serviceKey)],["Device",o.deviceModel||"—"],["Identifier",o.maskedIdentifier||"Protected"],["Amount charged",fmt(o.amountDue)],["Fast service",o.fastService?"Requested (+D1,000)":"No"]].forEach(function(r){var d=el("div");d.appendChild(el("b",null,r[0]));d.appendChild(el("span",null,r[1]));F.appendChild(d)});
+var n=o.adminNote||o.note;if(n){$("r-note-t").textContent=n;$("r-note").classList.remove("hidden")}$("detail").classList.remove("hidden")}})();</script>
+</body>
+</html>
