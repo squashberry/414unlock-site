@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1f8f">
+<meta name="description" content="How the 414Unlock Activation Lock service works: who it is for, what your iPhone can do afterwards, which models qualify and how an order moves from wallet to finished.">
+<title>Service guide · 414Unlock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="414.css"><script src="site-config.js"></script>
+<style>
+.sec{margin-top:64px}.sec:first-child{margin-top:0}
+.sec>h2{font-size:clamp(28px,3.4vw,40px);font-weight:750;margin-bottom:16px}
+.sec>p{max-width:40em;margin:0 0 16px}
+.amber{margin-top:22px;background:#fff6dc;border-left:5px solid #e0a800;border-radius:0 12px 12px 0;padding:16px 20px;font-size:15.5px;color:#5c4700;max-width:44em}
+.amber b{display:block;font:700 17px var(--disp);color:#3f3000;margin-bottom:2px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px}
+.col{background:#fff;border-radius:16px;padding:26px}
+.col h3{font-size:22px;font-weight:750;margin-bottom:12px}
+.col ul{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+.col li{position:relative;padding-left:28px}
+.col li:before{content:"";position:absolute;left:0;top:.55em;width:14px;height:3px;border-radius:2px;background:var(--green)}
+.col.no li:before{background:var(--red)}
+.col.no{border-top:5px solid var(--red)}.col.yes{border-top:5px solid var(--green)}
+.groups{border-top:2px solid var(--ink);margin-top:24px}
+.groups>div{display:grid;grid-template-columns:220px 1fr;gap:6px 28px;padding:20px 4px;border-bottom:1px solid var(--line)}
+.groups h3{font-size:21px;font-weight:700}.groups p{margin:0;color:var(--mute)}
+.steps{list-style:none;margin:24px 0 0;padding:0;counter-reset:s;display:grid;gap:0;max-width:46em}
+.steps li{position:relative;padding:0 0 30px 64px}
+.steps li:before{counter-increment:s;content:counter(s);position:absolute;left:0;top:0;width:44px;height:44px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font:800 19px var(--disp)}
+.steps li:after{content:"";position:absolute;left:21px;top:48px;bottom:4px;width:2px;background:var(--blue);opacity:.25}
+.steps li:last-child{padding-bottom:0}.steps li:last-child:after{display:none}
+.steps h3{font-size:22px;font-weight:700;margin:6px 0 6px}.steps p{margin:0;color:var(--mute)}
+.know{border-top:2px solid var(--ink);margin-top:24px}
+.know>div{display:grid;grid-template-columns:220px 1fr;gap:6px 28px;padding:18px 4px;border-bottom:1px solid var(--line)}
+.know b{font:700 19px var(--disp);letter-spacing:-.02em}.know span{color:var(--mute)}
+details{background:#fff;border-radius:12px;margin-bottom:10px}
+summary{cursor:pointer;list-style:none;padding:18px 22px;font:700 19px var(--disp);letter-spacing:-.02em;display:flex;justify-content:space-between;gap:16px;align-items:center}
+summary::-webkit-details-marker{display:none}
+summary:after{content:"+";font:600 26px var(--body);color:var(--blue);line-height:1}
+details[open] summary:after{content:"–"}
+details p{margin:0;padding:0 22px 20px;color:var(--mute);max-width:44em}
+.cta{background:var(--green);color:#fff;padding:56px 0}
+.cta .wrap{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap}
+.cta h2{font-size:clamp(28px,3.6vw,42px);font-weight:800}.cta p{margin:8px 0 0;color:#d3f0dc}
+.cta .btn{color:var(--green)}.cta .btn-o{color:#fff}.cta .acts{display:flex;gap:12px;flex-wrap:wrap}
+@media(max-width:760px){.cols{grid-template-columns:1fr}.groups>div,.know>div{grid-template-columns:1fr}.steps li{padding-left:58px}}
+</style>
+</head>
+<body>
+<div class="stripe" aria-hidden="true"></div>
+<header class="band"><div class="wrap">
+<div class="nav-in"><a class="brand" href="index.html" aria-label="414Unlock home"><span class="mark">414</span><span>Unlock</span></a><nav aria-label="Main navigation"><a class="hide-sm" href="index.html">Home</a><a class="hide-sm" href="services.html">Services &amp; prices</a><a class="hide-sm" href="guide.html" aria-current="page">Service guide</a><a href="account.html?flow=signin">Sign in</a><a class="btn btn-w" href="account.html?flow=signup">Create account</a></nav></div>
+<div class="head"><h1>What the service does, and what it doesn’t.</h1><p>A plain-language guide to Activation Lock service on 414Unlock: who it is for, what your iPhone can do afterwards, which models qualify and how a request moves from your wallet to a finished device.</p></div>
+</div></header>
+<main><div class="wrap">
+
+<section class="sec"><h2>Why an iPhone gets stuck</h2>
+<p>Activation Lock is an Apple security feature. When Find My is switched on, an iPhone can only be set up again with the Apple ID that was used on it. That protects owners, but it also traps people who simply cannot sign in: the password is forgotten, the old email address is gone, or the phone came from a seller who can no longer be reached.</p>
+<p>414Unlock handles these cases as a managed service. You send the device details, our team reviews them, and once the request is approved and processed the iPhone can be set up again with your own Apple ID, on Wi-Fi.</p>
+<div class="amber"><b>Try the simple routes first</b>If you can still recover the Apple ID, or reach the previous owner and ask them to remove the device from their account, that is the quickest and cleanest fix. Apple Support can also help owners who have proof of purchase.</div></section>
+
+<section class="sec"><h2>After the service</h2>
+<p>A serviced iPhone behaves like a Wi-Fi-only device. Signal unlock is not available at this time, so decide whether that suits you before you order.</p>
+<div class="cols"><div class="col yes"><h3>What works</h3><ul><li>Wi-Fi internet and web browsing</li><li>Signing in with your own Apple ID</li><li>Downloading apps from the App Store</li><li>Messaging and calling apps over Wi-Fi</li><li>The camera, photos, settings and the other everyday features of the phone</li></ul></div>
+<div class="col no"><h3>What does not</h3><ul><li>Phone calls and SMS over the mobile network</li><li>Mobile data through a SIM card</li><li>Signal unlock, which is not offered right now</li></ul></div></div></section>
+
+<section class="sec"><h2>Which iPhones qualify</h2>
+<p>Our published prices cover the iPhone 6 up to the iPhone 16 series. Eligibility is confirmed before any processing starts, and it depends on the exact model, its iOS version and its status.</p>
+<div class="groups"><div><h3>iPhone 6 to iPhone X</h3><p>Older chip generations. Each model is only supported up to a certain iOS version, so a phone that has been updated past that point may not qualify.</p></div><div><h3>iPhone XR and newer</h3><p>Newer devices are handled by a different method and generally need to be running iOS 17 or later.</p></div><div><h3>Find your details</h3><p>Open Settings, then General, then About, to see the model name, iOS version and serial number. The IMEI is shown there too, or dial *#06# on the phone.</p></div></div></section>
+
+<section class="sec"><h2>From wallet to finished</h2>
+<ol class="steps">
+<li><h3>Create and verify your account</h3><p>Sign up, confirm your email and complete access verification. Paid services stay locked until your account is approved.</p></li>
+<li><h3>Top up your wallet</h3><p>Create a top-up request, pay the exact amount through SquashberryPay and submit the transaction reference. Credit appears after a person has confirmed the payment.</p></li>
+<li><h3>Send your device details</h3><p>Choose the price band, enter the exact model and its serial number or IMEI, describe the situation and confirm that you own the phone or have the owner’s permission. An optional IMEI check comes first if you want to be sure before paying for the full service.</p></li>
+<li><h3>Review and processing</h3><p>The team reviews the request by hand, then moves it through the stages you can follow in your account: submitted, registered, processing, completed.</p></li>
+<li><h3>Finish on your phone</h3><p>When the request shows as completed, your iPhone is ready to be set up with your own Apple ID.</p></li></ol></section>
+
+<section class="sec"><h2>Good to know before you order</h2>
+<div class="know">
+<div><b>Prices</b><span>Listed in Gambian Dalasi for each model band. See Services &amp; prices for the full list.</span></div>
+<div><b>Delivery</b><span>Estimated at 1–5 days depending on the device. This is an estimate, not a guarantee.</span></div>
+<div><b>Fast service</b><span>An optional +D1,000 add-on that asks for priority. It does not promise a completion time.</span></div>
+<div><b>Ownership</b><span>You may only request a service for a device you own or have the owner’s explicit permission to service. We can ask for evidence and may decline requests we cannot verify.</span></div>
+<div><b>Refunds</b><span>If a request is rejected before processing starts, the wallet charge is returned automatically. Once processing has started there is no refund.</span></div></div></section>
+
+<section class="sec"><h2>Common questions</h2>
+<details><summary>Can I make phone calls afterwards?</summary><p>Not over the mobile network. The phone works like a Wi-Fi-only device, so calls and messages go through apps that use the internet.</p></details>
+<details><summary>Can I get a version that works with a SIM?</summary><p>Not at this time. All listed services are Wi-Fi-only after the service.</p></details>
+<details><summary>What does the IMEI check do?</summary><p>It costs D150 and checks the device before you commit. If you go ahead with the unlock within 7 days of the check being completed, the D150 is credited against the unlock price. The credit can only be used once.</p></details>
+<details><summary>What if my iPhone turns out not to be eligible?</summary><p>Eligibility is confirmed before processing begins. If the request is rejected at that stage, the amount charged to your wallet is returned automatically.</p></details>
+<details><summary>Will I need to prove the phone is mine?</summary><p>Possibly. Account verification does not by itself prove you may service a particular device, so we may ask for evidence of ownership first.</p></details>
+<details><summary>Is paying through the site safe?</summary><p>414Unlock never collects your card details or mobile-money PIN. You pay through SquashberryPay, and a person checks the transaction before any credit is added. A screenshot or a typed reference alone is never treated as payment.</p></details></section>
+
+</div></main>
+<section class="cta"><div class="wrap"><div><h2>Ready to start?</h2><p>Create your account, top up your wallet and send the device details from one place.</p></div><div class="acts"><a class="btn btn-w" href="account.html?flow=signup">Create account</a><a class="btn btn-o" href="services.html">View prices</a></div></div></section>
+<footer><div class="wrap foot"><a class="brand" href="index.html"><span class="mark">414</span><span>Unlock</span></a><div class="links"><a href="services.html">Prices</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="account.html?flow=signin">Account</a></div><span>© 414Unlock · The Gambia</span></div><div class="stripe" style="margin-top:28px" aria-hidden="true"></div></footer>
+</body>
+</html>
