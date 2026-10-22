@@ -1,17 +1,152 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111510"><meta name="description" content="414Unlock — transparent iPhone service prices, wallet credit and a guided service request workspace."><title>414Unlock — iPhone service workspace</title><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="portal.css"><script src="site-config.js"></script></head>
-<body class="portal-body">
-<header class="topbar portal-topbar"><a class="brand" href="index.html" aria-label="414Unlock home"><span class="brand-mark">414</span><span class="brand-name">UNLOCK</span></a><nav class="topnav" aria-label="Main navigation"><a href="services.html">Services & prices</a><a href="https://github.com/squashberry/414unlock-site/releases/latest" target="_blank" rel="noopener noreferrer">Download app</a><a href="#how-it-works">How it works</a><a href="account.html?flow=signin">Sign in</a><a class="portal-nav-cta" href="account.html?flow=signup">Create account <span aria-hidden="true">↗</span></a></nav></header>
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1f8f">
+<meta name="description" content="414Unlock — transparent iPhone service prices, wallet credit and a guided service request workspace.">
+<title>414Unlock — iPhone service workspace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600&display=swap">
+<script src="site-config.js"></script>
+<style>
+:root{--blue:#0b1f8f;--deep:#071463;--ink:#0d1337;--chalk:#eef1f8;--line:#d5dbec;--green:#17703a;--red:#cf1b2e;--mute:#586080;--disp:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;--body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;font:400 17px/1.6 var(--body);color:var(--ink);background:#fff;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:3px solid #7aa2ff;outline-offset:3px;border-radius:4px}
+.wrap{width:min(1180px,calc(100% - 48px));margin-inline:auto}
+h1,h2,h3{font-family:var(--disp);margin:0;line-height:1.02;letter-spacing:-.035em}
+h2{font-size:clamp(32px,4vw,52px);font-weight:750}
+.stripe{height:10px;background:linear-gradient(var(--red) 0 3px,#fff 3px 4px,var(--blue) 4px 6px,#fff 6px 7px,var(--green) 7px)}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:50px;padding:0 24px;border-radius:8px;font-weight:600;font-size:16px;border:2px solid transparent;transition:background .15s,color .15s}
+.btn-w{background:#fff;color:var(--blue)}.btn-w:hover{background:#dfe6ff}
+.btn-o{border-color:#ffffff77;color:#fff}.btn-o:hover{background:#ffffff1f}
+.hero{background:var(--blue);color:#fff}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:84px}
+.brand{display:flex;align-items:center;gap:10px;font:800 21px var(--disp);letter-spacing:-.02em}
+.mark{background:#fff;color:var(--blue);border-radius:6px;padding:2px 8px;font-size:19px}
+nav{display:flex;align-items:center;gap:28px;font-size:15px;font-weight:500}
+nav a:not(.btn):hover{text-decoration:underline;text-underline-offset:5px}
+.nav .btn{min-height:42px;padding:0 18px;font-size:15px}
+.hero-grid{display:grid;grid-template-columns:5fr 6fr;gap:64px;align-items:center;padding:52px 0 96px}
+h1{font-size:clamp(46px,6.2vw,88px);font-weight:800;line-height:.96}
+.lede{font-size:19px;color:#cdd6ff;max-width:34em;margin:24px 0 32px}
+.acts{display:flex;gap:12px;flex-wrap:wrap}
+.facts{list-style:none;padding:0;margin:40px 0 0;display:grid;gap:10px;font-size:15px;color:#cdd6ff}
+.facts li{padding-left:28px;position:relative}
+.facts li::before{content:"";position:absolute;left:1px;top:.4em;width:13px;height:7px;border-left:3px solid #7fe0a0;border-bottom:3px solid #7fe0a0;transform:rotate(-45deg)}
+.ladder{background:var(--deep);border-radius:24px;padding:28px 28px 22px;box-shadow:0 30px 60px #00082e80}
+.ladder h2{font-size:23px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.ladder>p{margin:4px 0 20px;color:#aab6f0;font-size:14px}
+.rung{display:grid;grid-template-columns:170px 1fr;align-items:center;gap:14px;padding:5px 0;font-size:14px;line-height:1.3;color:#dbe2ff}
+.bar{width:var(--w);min-width:78px;height:34px;background:#fff;color:var(--blue);border-radius:5px;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font:800 15px var(--disp);font-variant-numeric:tabular-nums;animation:grow .9s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i)*70ms)}
+.rung:hover .bar{background:#bff0d0}
+@keyframes grow{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0)}}
+.lfoot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:18px;padding-top:16px;border-top:1px solid #ffffff26;font-size:13.5px;color:#aab6f0}
+.lfoot a{color:#fff;font-weight:600;text-decoration:underline;text-underline-offset:4px}
+.sec{padding:104px 0}
+.two{display:grid;grid-template-columns:5fr 6fr;gap:72px;align-items:start}
+.lead{color:var(--mute);font-size:18px;max-width:30em;margin:20px 0 0}
+.notice{margin-top:32px;padding:18px 20px;border-left:5px solid var(--red);background:#fdf0f1;font-size:15px;border-radius:0 10px 10px 0}
+.terms{margin:0;border-top:2px solid var(--ink)}
+.terms>div{display:grid;grid-template-columns:150px 1fr auto;gap:20px;align-items:baseline;padding:22px 0;border-bottom:1px solid var(--line)}
+.terms dt{font:700 20px var(--disp);letter-spacing:-.02em}
+.terms dd{margin:0;color:var(--mute);font-size:16px}
+.terms dd.v{color:var(--ink);font:800 24px var(--disp);font-variant-numeric:tabular-nums;text-align:right}
+.how{background:var(--chalk)}
+.how-head{max-width:640px;margin-bottom:56px}
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:28px;counter-reset:s}
+.steps li{position:relative;padding-top:64px}
+.steps li::before{counter-increment:s;content:counter(s);position:absolute;top:0;left:0;width:44px;height:44px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font:800 19px var(--disp);z-index:1}
+.steps li::after{content:"";position:absolute;top:21px;left:44px;right:-28px;height:2px;background:var(--blue);opacity:.25}
+.steps li:last-child::after{display:none}
+.steps h3{font-size:22px;letter-spacing:-.02em;margin-bottom:8px}
+.steps p{margin:0;color:var(--mute);font-size:15.5px}
+.acct{background:var(--green);color:#fff}
+.acct .two{align-items:center}
+.acct .lead{color:#d3f0dc}
+.acct .acts{margin-top:32px}
+.acct .btn-w{color:var(--green)}
+.slip{position:relative;background:#fff;color:var(--ink);padding:30px 30px 40px;transform:rotate(-1.5deg);filter:drop-shadow(0 22px 30px #0a2e1a66);max-width:440px;margin:0 auto 14px}
+.slip::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:10px;background:conic-gradient(from -45deg at 50% 100%,#fff 90deg,#0000 0) 0 0/20px 10px}
+.sl-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding-bottom:16px;border-bottom:2px dashed var(--line)}
+.sl-h b{font:800 20px var(--disp);letter-spacing:-.02em}.sl-h span{font-size:13px;color:var(--mute)}
+.sl-r{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 0;border-bottom:1px solid var(--line)}
+.sl-r b{display:block;font-size:16px}.sl-r small{display:block;color:var(--mute);font-size:13px}
+.tag{font-size:12.5px;font-weight:600;padding:3px 11px;border-radius:99px;background:#e4e9ff;color:var(--blue);white-space:nowrap}
+.tag.n{background:var(--chalk);color:var(--mute)}
+.sl-t{display:flex;justify-content:space-between;align-items:baseline;padding:20px 0 6px}
+.sl-t span{font-size:15px;color:var(--mute)}.sl-t strong{font:800 34px var(--disp);letter-spacing:-.03em}
+.sl-f{margin:6px 0 0;font-size:13px;color:var(--green);font-weight:600}
+footer{padding-bottom:34px}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;padding-top:32px;font-size:14px;color:var(--mute)}
+.foot .brand{color:var(--ink)}.foot .mark{background:var(--blue);color:#fff}
+.foot nav{gap:22px}
+@media(max-width:980px){.hero-grid,.two{grid-template-columns:1fr;gap:48px}.hero-grid{padding-bottom:72px}.steps{grid-template-columns:1fr 1fr;row-gap:40px}.steps li::after{display:none}.sec{padding:80px 0}}
+@media(max-width:600px){.wrap{width:calc(100% - 32px)}.hide-sm{display:none}nav{gap:16px}.rung{grid-template-columns:1fr;gap:4px}.ladder{padding:22px 18px}.steps{grid-template-columns:1fr}.terms>div{grid-template-columns:1fr auto;gap:4px 16px}.terms dt{grid-column:1/-1}.btn{width:100%}.nav .btn{width:auto;padding:0 14px}.acts{display:grid}.slip{padding:24px 22px 34px}}
+@media(prefers-reduced-motion:reduce){.bar{animation:none}html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="stripe" aria-hidden="true"></div>
+<header class="hero">
+<div class="wrap">
+<div class="nav-in"><a class="brand" href="index.html" aria-label="414Unlock home"><span class="mark">414</span><span>Unlock</span></a>
+<nav class="nav" aria-label="Main navigation"><a class="hide-sm" href="services.html">Services &amp; prices</a><a class="hide-sm" href="https://github.com/squashberry/414unlock-site/releases/latest" target="_blank" rel="noopener noreferrer">Download app</a><a class="hide-sm" href="#how-it-works">How it works</a><a href="account.html?flow=signin">Sign in</a><a class="btn btn-w" href="account.html?flow=signup">Create account</a></nav></div>
+<div class="hero-grid">
+<div>
+<h1>Know the price. Own the process.</h1>
+<p class="lede">A clearer way to request supported iPhone services. Add credit to your 414Unlock wallet, choose the service and track its status from one account.</p>
+<div class="acts"><a class="btn btn-w" href="services.html">Explore service prices</a><a class="btn btn-o" href="account.html?flow=signup">Create your account</a></div>
+<ul class="facts"><li>Prices in Gambian Dalasi</li><li>Every request is reviewed manually</li><li>A wallet in your account for service credit</li></ul>
+</div>
+<section class="ladder" id="prices" aria-labelledby="ladder-title">
+<h2 id="ladder-title">Service price by iPhone model</h2>
+<p>Prices in Gambian Dalasi (GMD). Bar length shows the price relative to the highest.</p>
+<a class="rung" href="services.html" style="--i:0"><span>iPhone 6, 6 Plus, 6S, SE</span><span class="bar" style="--w:21.5%">D1,400</span></a>
+<a class="rung" href="services.html" style="--i:1"><span>iPhone 7, 7 Plus</span><span class="bar" style="--w:24.6%">D1,600</span></a>
+<a class="rung" href="services.html" style="--i:2"><span>iPhone 8, 8 Plus</span><span class="bar" style="--w:29.2%">D1,900</span></a>
+<a class="rung" href="services.html" style="--i:3"><span>iPhone X</span><span class="bar" style="--w:33.8%">D2,200</span></a>
+<a class="rung" href="services.html" style="--i:4"><span>iPhone XR, XS, XS Max</span><span class="bar" style="--w:38.5%">D2,500</span></a>
+<a class="rung" href="services.html" style="--i:5"><span>iPhone 11 and 12 series</span><span class="bar" style="--w:46.2%">D3,000</span></a>
+<a class="rung" href="services.html" style="--i:6"><span>iPhone 13 and 14 series</span><span class="bar" style="--w:53.8%">D3,500</span></a>
+<a class="rung" href="services.html" style="--i:7"><span>iPhone 15 series</span><span class="bar" style="--w:76.9%">D5,000</span></a>
+<a class="rung" href="services.html" style="--i:8"><span>iPhone 16 series</span><span class="bar" style="--w:100%">D6,500</span></a>
+<div class="lfoot"><span>Wi-Fi only, no signal after service.</span><a href="services.html">View full price list</a></div>
+</section>
+</div>
+</div>
+</header>
 <main>
-<section class="home-hero"><div class="home-hero-inner"><div class="home-copy"><div class="portal-eyebrow"><span class="eyebrow-dot"></span> IPHONE SERVICES · GAMBIA</div><h1>Know the price.<br><em>Own the process.</em></h1><p class="home-lede">A clearer way to request supported iPhone services. Add credit to your 414Unlock wallet, choose the service and track its status from one account.</p><div class="home-actions"><a class="portal-button portal-button-lime" href="services.html">Explore service prices <span>↗</span></a><a class="portal-button portal-button-outline" href="account.html?flow=signup">Create your account</a></div><div class="home-meta"><span><i></i> Prices in Gambian Dalasi</span><span>Manual service review</span><span>Account wallet</span></div></div>
-<div class="wallet-preview" aria-label="Illustration of the 414Unlock account wallet"><div class="preview-header"><div><span class="preview-kicker">YOUR WORKSPACE</span><strong>414Unlock <span class="preview-live">●</span></strong></div><span class="preview-avatar">414</span></div><div class="preview-balance"><span>AVAILABLE CREDIT</span><strong>GMD <b>0</b></strong><small>Your wallet, your service choices.</small></div><div class="preview-mini-stats"><div><span>WALLET</span><b>Top up</b><small>Request credit</small></div><div><span>SERVICES</span><b>Clear prices</b><small>Before ordering</small></div></div><div class="preview-activity"><div class="preview-activity-head"><b>Service activity</b><span>EXAMPLE</span></div><div class="preview-activity-row"><span class="preview-activity-icon">↗</span><div><b>Service request</b><small>Track it in your account</small></div><span class="preview-status">PENDING</span></div><div class="preview-activity-row"><span class="preview-activity-icon soft">＋</span><div><b>Wallet top-up</b><small>Added after payment review</small></div><span class="preview-status neutral">REVIEW</span></div></div><div class="preview-foot"><span class="preview-check">✓</span> Balance only changes after payment is confirmed.</div></div></div><div class="hero-bottom-line"><span>BUILT FOR CLARITY</span><span>01 / CHECK PRICES</span><span>02 / ADD CREDIT</span><span>03 / TRACK YOUR REQUEST</span></div></section>
-<section class="home-prices section wrap" id="prices"><div class="home-section-head"><div><div class="eyebrow dark-eyebrow">SERVICE PRICE LIST</div><h2>Clear prices. No guesswork.</h2><p>These are the published list prices. Final eligibility depends on device status and carrier.</p></div><a class="portal-text-link" href="services.html">View full price list <span>↗</span></a></div>
-<div class="price-grid-home"><a class="home-price-card" href="services.html"><span>IPHONE 6 · 6 PLUS · 6S · SE</span><strong>D1,400</strong><small>Wi-Fi only · no signal</small></a><a class="home-price-card" href="services.html"><span>IPHONE 7 · 7 PLUS</span><strong>D1,600</strong><small>Wi-Fi only · no signal</small></a><a class="home-price-card" href="services.html"><span>IPHONE 8 · 8 PLUS</span><strong>D1,900</strong><small>Wi-Fi only · no signal</small></a><a class="home-price-card" href="services.html"><span>IPHONE X</span><strong>D2,200</strong><small>Wi-Fi only · no signal</small></a><a class="home-price-card" href="services.html"><span>IPHONE XR · XS · XS MAX</span><strong>D2,500</strong><small>Wi-Fi only · no signal</small></a><a class="home-price-card" href="services.html"><span>IPHONE 11 · 12 SERIES</span><strong>D3,000</strong><small>Wi-Fi only · no signal</small></a><a class="home-price-card" href="services.html"><span>IPHONE 13 · 14 SERIES</span><strong>D3,500</strong><small>Wi-Fi only · no signal</small></a><a class="home-price-card" href="services.html"><span>IPHONE 15 SERIES</span><strong>D5,000</strong><small>Wi-Fi only · no signal</small></a><a class="home-price-card" href="services.html"><span>IPHONE 16 SERIES</span><strong>D6,500</strong><small>Wi-Fi only · no signal</small></a></div>
-<div class="price-addons"><div><span class="addon-icon">⌕</span><div><b>IMEI check</b><small>Free if you proceed with an unlock</small></div><strong>D150</strong></div><div><span class="addon-icon">ϟ</span><div><b>Fast service</b><small>Optional priority add-on</small></div><strong>+D1,000</strong></div></div>
-<div class="price-disclaimer"><span>i</span><p><b>Important:</b> All listed unlock services are no-signal / Wi-Fi-only after service. Signal unlock is not currently available. Estimated delivery is 1–5 days depending on the device. No refund after processing has started.</p></div></section>
-<section class="home-process" id="how-it-works"><div class="wrap"><div class="home-section-head light-head"><div><div class="portal-eyebrow"><span class="eyebrow-dot"></span> HOW IT WORKS</div><h2>From wallet to service status.</h2><p>A practical, trackable process from the first top-up to the service update.</p></div><a class="portal-button portal-button-light" href="account.html?flow=signup">Get started <span>↗</span></a></div><div class="steps-grid"><article><span>01</span><div class="step-symbol">◎</div><h3>Create your account</h3><p>Sign up and complete account verification before using paid services.</p></article><article><span>02</span><div class="step-symbol">＋</div><h3>Top up your wallet</h3><p>Submit your SquashberryPay transaction reference. Credit is added after manual payment confirmation.</p></article><article><span>03</span><div class="step-symbol">⌕</div><h3>Submit device details</h3><p>Choose a listed service, enter your iPhone information and confirm you are authorised to request it.</p></article><article><span>04</span><div class="step-symbol">↗</div><h3>Track progress</h3><p>The service team reviews the request and updates its status in your account.</p></article></div></div></section>
-<section class="home-bottom-cta wrap"><div class="cta-stamp">414</div><div><div class="eyebrow dark-eyebrow">YOUR ACCOUNT, IN ONE PLACE</div><h2>Ready to get started?</h2><p>Create an account to see your wallet, service requests and payment history — or download the Windows desktop app.</p></div><div class="bottom-cta-actions"><a class="portal-button portal-button-dark" href="account.html?flow=signup">Create account <span>↗</span></a><a class="portal-button portal-button-outline-light" href="https://github.com/squashberry/414unlock-site/releases/latest" target="_blank" rel="noopener noreferrer">Download Windows app <span>↓</span></a></div></section>
+<section class="sec"><div class="wrap two">
+<div><h2>Read this before you order.</h2><p class="lead">These are the published list prices. Final eligibility depends on device status and carrier.</p><p class="notice"><b>Important:</b> All listed unlock services are no-signal / Wi-Fi-only after service. Signal unlock is not currently available.</p></div>
+<dl class="terms">
+<div><dt>IMEI check</dt><dd>Free if you proceed with an unlock</dd><dd class="v">D150</dd></div>
+<div><dt>Fast service</dt><dd>Optional priority add-on</dd><dd class="v">+D1,000</dd></div>
+<div><dt>Delivery</dt><dd>Estimated, depending on the device</dd><dd class="v">1–5 days</dd></div>
+<div><dt>Refunds</dt><dd>No refund after processing has started</dd></div>
+</dl>
+</div></section>
+<section class="sec how" id="how-it-works"><div class="wrap">
+<div class="how-head"><h2>From wallet to service status.</h2><p class="lead">A practical, trackable process from the first top-up to the service update.</p></div>
+<ol class="steps">
+<li><h3>Create your account</h3><p>Sign up and complete account verification before using paid services.</p></li>
+<li><h3>Top up your wallet</h3><p>Submit your SquashberryPay transaction reference. Credit is added after manual payment confirmation.</p></li>
+<li><h3>Submit device details</h3><p>Choose a listed service, enter your iPhone information and confirm you are authorised to request it.</p></li>
+<li><h3>Track progress</h3><p>The service team reviews the request and updates its status in your account.</p></li>
+</ol>
+</div></section>
+<section class="sec acct"><div class="wrap two">
+<div><h2>Credit, requests and status in one account.</h2><p class="lead">Create an account to see your wallet, service requests and payment history, or download the Windows desktop app.</p>
+<div class="acts"><a class="btn btn-w" href="account.html?flow=signup">Create account</a><a class="btn btn-o" href="https://github.com/squashberry/414unlock-site/releases/latest" target="_blank" rel="noopener noreferrer">Download Windows app</a></div></div>
+<div class="slip" role="img" aria-label="Illustration of a 414Unlock wallet statement showing a top-up in review, a pending service request and GMD 0 available credit">
+<div class="sl-h"><b>414Unlock wallet</b><span>Example statement</span></div>
+<div class="sl-r"><div><b>Wallet top-up</b><small>Added after payment review</small></div><span class="tag">In review</span></div>
+<div class="sl-r"><div><b>Service request</b><small>Track it in your account</small></div><span class="tag n">Pending</span></div>
+<div class="sl-t"><span>Available credit</span><strong>GMD 0</strong></div>
+<p class="sl-f">Balance only changes after payment is confirmed.</p>
+</div>
+</div></section>
 </main>
-<footer class="footer portal-footer"><div class="wrap footer-inner"><a class="brand" href="index.html"><span class="brand-mark">414</span><span class="brand-name">UNLOCK</span></a><div class="footer-links"><a href="services.html">Services & prices</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="account.html?flow=signin">Account</a></div><span>© 414Unlock · The Gambia</span></div></footer>
-</body></html>
+<footer><div class="stripe" aria-hidden="true"></div><div class="wrap foot"><a class="brand" href="index.html"><span class="mark">414</span><span>Unlock</span></a><nav aria-label="Footer"><a href="services.html">Services &amp; prices</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="account.html?flow=signin">Account</a></nav><span>© 414Unlock · The Gambia</span></div></footer>
+</body>
+</html>
