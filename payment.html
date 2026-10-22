@@ -90,13 +90,13 @@ footer{background:#fff;padding-bottom:30px}
 [data-state=done] .secure-note{margin-top:18px}
 @media(prefers-reduced-motion:reduce){.state{animation:none!important}}
 @media(max-width:860px){.payment-grid{grid-template-columns:1fr}}
-@media(max-width:600px){.wrap{width:calc(100% - 32px)}nav{gap:14px}.intro{padding-bottom:40px}.intro p{font-size:16px}.payment-steps i{width:18px}.payment-action-card{padding:24px 18px}.device-meta{padding:6px 18px 22px}.foot span{order:3;width:100%}}
+@media(max-width:600px){.wrap{width:calc(100% - 32px)}nav{gap:14px}nav a[href="terms.html"],nav a[href="privacy.html"]{display:none}.intro{padding-bottom:40px}.intro p{font-size:16px}.payment-steps i{width:18px}.payment-action-card{padding:24px 18px}.device-meta{padding:6px 18px 22px}.foot span{order:3;width:100%}}
 </style>
 </head>
 <body>
 <div class="stripe" aria-hidden="true"></div>
 <header class="band"><div class="wrap">
-<div class="nav-in"><a class="brand" href="index.html" aria-label="414Unlock home"><span class="mark">414</span><span>Unlock</span></a><nav aria-label="Main navigation"><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="account.html?flow=signin">Account</a></nav></div>
+<div class="nav-in"><a class="brand" href="index.html" aria-label="414Unlock home"><span class="mark">414</span><span>Unlock</span></a><nav aria-label="Main navigation"><a href="contact.html">Support</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="account.html?flow=signin">Account</a></nav></div>
 <div class="intro"><h1>One device. One verified payment.</h1><p>Confirm the iPhone detected by 414Unlock, pay through SquashberryPay, then enter the confirmation code it sends you.</p>
 <div class="payment-steps"><span data-s="1"><b>1</b> Device</span><i></i><span data-s="2"><b>2</b> Pay</span><i></i><span data-s="3"><b>3</b> Confirm</span><i></i><span data-s="4"><b>4</b> Return to app</span></div></div>
 </div></header>
@@ -137,7 +137,7 @@ footer{background:#fff;padding-bottom:30px}
 </div>
 <p class="payment-footer-note">Your payment is associated with the detected device’s server-side fingerprint and this payment reference. If the preview doesn’t match your iPhone, stop and return to 414Unlock.</p>
 </div></main>
-<footer><div class="stripe" aria-hidden="true"></div><div class="wrap foot"><a class="brand" href="index.html"><span class="mark">414</span><span>Unlock</span></a><span>© 2026 414Unlock. Use only on devices you own or are authorized to service.</span><div class="links"><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></div></div></footer>
+<footer><div class="stripe" aria-hidden="true"></div><div class="wrap foot"><a class="brand" href="index.html"><span class="mark">414</span><span>Unlock</span></a><span>© 2026 414Unlock. Use only on devices you own or are authorized to service.</span><div class="links"><a href="contact.html">Support</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></div></div></footer>
 <script>(function(){var card=document.getElementById("pay-card"),vp=document.getElementById("verified-panel"),steps=document.querySelectorAll(".payment-steps [data-s]"),rank={pay:2,code:3,done:4},paid=document.getElementById("paid-button");
 function set(s,focus){card.dataset.state=s;steps.forEach(function(el){var i=+el.dataset.s;el.classList.toggle("done",i<rank[s]);el.classList.toggle("active",i===rank[s])});
 if(!focus)return;var code=document.getElementById("payment-code"),h=card.querySelector(".state-"+s+" h2");(s==="code"&&!code.disabled?code:h||vp).focus()}
