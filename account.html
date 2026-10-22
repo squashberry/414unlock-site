@@ -1,7 +1,66 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f6f3"><title>Sign in · 414Unlock</title><link rel="stylesheet" href="site.css"><script src="site-config.js"></script><script defer src="account.js"></script></head>
-<body><header class="topbar"><a class="brand" href="index.html"><span class="brand-mark">414</span><span class="brand-name">UNLOCK</span></a><nav class="topnav"><a href="index.html">← Back to home</a></nav></header>
-<main class="form-page"><div class="form-shell"><a class="form-back" href="index.html">← 414Unlock home</a><section class="form-card"><div class="eyebrow dark-eyebrow">YOUR 414UNLOCK ACCOUNT</div><h1 id="heading">Welcome back.</h1><p class="form-intro" id="intro">Sign in to confirm your account access. When you sign in from the desktop app, you will return to 414Unlock automatically.</p>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1f8f">
+<title>Sign in · 414Unlock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600&display=swap">
+<script src="site-config.js"></script><script defer src="account.js" onerror="window.__acctFail=1"></script>
+<style>
+:root{--blue:#0b1f8f;--deep:#071463;--ink:#0d1337;--chalk:#eef1f8;--line:#d5dbec;--green:#17703a;--red:#cf1b2e;--mute:#586080;--disp:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;--body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}.hidden,[hidden]{display:none!important}
+body{margin:0;font:400 16px/1.55 var(--body);color:var(--ink);background:#fff;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:3px solid #7aa2ff;outline-offset:3px;border-radius:4px}
+h1,h2{font-family:var(--disp);margin:0;letter-spacing:-.035em;line-height:1.02}
+.stripe{height:10px;background:linear-gradient(var(--red) 0 3px,#fff 3px 4px,var(--blue) 4px 6px,#fff 6px 7px,var(--green) 7px)}
+.shell{display:grid;grid-template-columns:5fr 6fr;min-height:calc(100vh - 10px)}
+.side{background:var(--blue);color:#fff;padding:36px clamp(24px,5vw,72px) 56px;display:flex;flex-direction:column;justify-content:space-between;gap:48px}
+.brand{display:inline-flex;align-items:center;gap:10px;font:800 21px var(--disp);letter-spacing:-.02em}
+.mark{background:#fff;color:var(--blue);border-radius:6px;padding:2px 8px;font-size:19px}
+.side h2{font-size:clamp(34px,4vw,54px);font-weight:800;line-height:1}
+.side p{color:#cdd6ff;font-size:18px;max-width:22em;margin:20px 0 0}
+.bars{display:grid;gap:8px;margin-top:44px}
+.bars i{display:block;height:14px;background:#fff;border-radius:4px;width:var(--w);opacity:.9}
+.pane{padding:32px clamp(24px,6vw,88px) 56px;display:flex;flex-direction:column}
+.back{font-size:14px;font-weight:600;color:var(--mute)}.back:hover{color:var(--blue);text-decoration:underline;text-underline-offset:4px}
+.card{width:min(440px,100%);margin:auto;padding-top:32px}
+h1{font-size:clamp(34px,4.4vw,48px);font-weight:800}
+.form-intro{color:var(--mute);margin:14px 0 26px}
+.form-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--chalk);padding:4px;border-radius:10px;margin-bottom:22px}
+.form-tabs button{border:0;background:transparent;border-radius:7px;padding:11px;font:600 15px var(--body);color:var(--mute);cursor:pointer}
+.form-tabs button.active{background:#fff;color:var(--blue);box-shadow:0 1px 4px #0d133722}
+.field{margin:0 0 16px}
+label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
+input{width:100%;min-height:50px;border:1.5px solid var(--line);border-radius:10px;padding:10px 14px;font:inherit;font-size:16px;color:var(--ink);background:#fff}
+input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 4px #0b1f8f1f}
+small{display:block;font-size:13px;color:var(--mute);margin-top:6px}
+.message{display:none;padding:12px 14px;border-radius:10px;font-size:14.5px;margin:4px 0 16px}
+.message.show{display:block}
+.message.error{background:#fdf0f1;color:#7a1420}.message.success{background:#eaf6ee;color:#114f2a}.message.info{background:#e4e9ff;color:var(--deep)}
+.btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:52px;border:0;border-radius:8px;background:var(--blue);color:#fff;font:600 16px var(--body);cursor:pointer;transition:background .15s}
+.btn:hover{background:var(--deep)}
+#submit-button span{display:none}
+.legal{font-size:13.5px;color:var(--mute);margin:20px 0 0}
+.legal a{text-decoration:underline;text-underline-offset:3px;color:var(--ink)}
+.notice{margin-top:20px;padding:14px 16px;border-left:5px solid #e0a800;background:#fff6dc;border-radius:0 10px 10px 0;font-size:14px;color:#5c4700}
+.safe{margin-top:20px;padding:14px 16px;border-left:5px solid var(--red);background:#fdf0f1;border-radius:0 10px 10px 0;font-size:14px;color:#5a0d17}
+@media(max-width:860px){.shell{grid-template-columns:1fr}.side{padding:22px 24px;gap:0}.side-copy,.bars{display:none}.pane{padding:24px 24px 48px}.card{padding-top:24px}}
+</style>
+</head>
+<body>
+<div class="stripe" aria-hidden="true"></div>
+<div class="shell">
+<aside class="side">
+<a class="brand" href="index.html" aria-label="414Unlock home"><span class="mark">414</span><span>Unlock</span></a>
+<div class="side-copy"><h2>One account for credit, requests and status.</h2><p>Sign in to see your wallet, service requests and payment history.</p>
+<div class="bars" aria-hidden="true"><i style="--w:28%"></i><i style="--w:44%"></i><i style="--w:66%"></i><i style="--w:100%"></i></div></div>
+</aside>
+<main class="pane">
+<a class="back" href="index.html">← 414Unlock home</a>
+<section class="card">
+<h1 id="heading">Welcome back.</h1>
+<p class="form-intro" id="intro">Sign in to confirm your account access. When you sign in from the desktop app, you will return to 414Unlock automatically.</p>
 <div class="form-tabs"><button id="tab-signin" class="active" type="button">Sign in</button><button id="tab-signup" type="button">Create account</button></div>
 <form id="auth-form">
 <div id="name-wrap" class="field hidden"><label for="fullName">Full name</label><input id="fullName" name="fullName" autocomplete="name" maxlength="120" placeholder="Your full legal name"></div>
@@ -9,9 +68,14 @@
 <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required minlength="10" maxlength="128" placeholder="At least 10 characters"><small id="password-hint">Use the password you created for your account.</small></div>
 <div id="email-code-wrap" class="field hidden"><label for="emailCode">Email verification code</label><input id="emailCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter the code sent to your email"><small>Check your inbox and spam folder. Codes expire.</small></div>
 <div id="message" class="message" role="status" aria-live="polite"></div>
-<button id="submit-button" class="button button-primary full-button" type="submit">Sign in <span>→</span></button>
+<button id="submit-button" class="btn" type="submit">Sign in <span>→</span></button>
 </form>
-<p class="site-legal" style="margin:18px 0 0">By continuing, you agree to our <a href="terms.html"><u>Terms of Service</u></a> and acknowledge our <a href="privacy.html"><u>Privacy Policy</u></a>.</p>
-<div class="notice-card" id="api-notice">Secure account services are not connected yet. The website will not pretend a login succeeded while its authentication service is unconfigured.</div>
-</section><p class="site-legal" style="text-align:center">Never share your password or verification documents with anyone claiming to provide unofficial 414Unlock support.</p></div></main>
-</body></html>
+<p class="legal">By continuing, you agree to our <a href="terms.html">Terms of Service</a> and acknowledge our <a href="privacy.html">Privacy Policy</a>.</p>
+<div class="notice" id="api-notice">Secure account services are not connected yet. The website will not pretend a login succeeded while its authentication service is unconfigured.</div>
+<div class="safe">Never share your password or verification documents with anyone claiming to provide unofficial 414Unlock support.</div>
+</section>
+</main>
+</div>
+<script>window.addEventListener("load",function(){if(!window.__acctFail)return;var m=document.getElementById("message");m.textContent="The sign-in script (account.js) did not load, so the tabs and form cannot work. Upload account.js to the same folder as account.html.";m.className="message show error"});</script>
+</body>
+</html>
