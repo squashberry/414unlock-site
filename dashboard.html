@@ -95,7 +95,7 @@ small{display:block;font-size:13px;color:var(--mute);margin-top:6px}
 footer{background:#fff;padding-bottom:30px}
 .foot{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;padding-top:28px;font-size:14px;color:var(--mute)}
 .foot .brand{color:var(--ink)}.foot .mark{background:var(--blue);color:#fff}
-.links{display:flex;gap:22px;align-items:center}
+.links{display:flex;gap:10px 22px;align-items:center;flex-wrap:wrap}
 .plain-refresh{font:600 14px var(--body);color:var(--blue);background:none;border:0;padding:0;cursor:pointer}.plain-refresh:hover{text-decoration:underline}
 .tabs{position:relative;display:flex;gap:6px;margin-bottom:32px;border-bottom:2px solid var(--line);overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
@@ -127,6 +127,7 @@ footer{background:#fff;padding-bottom:30px}
 .btn{transition:background .15s,transform .15s}.btn:active{transform:scale(.97)}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
 @media(max-width:700px){.tiles{grid-template-columns:1fr}.next{padding:24px 20px}.tabs button{padding:13px 14px}}
+.help{margin:28px 0 0;color:var(--mute)}.help a{color:var(--blue);text-decoration:underline;text-underline-offset:3px}
 @media(max-width:980px){.hero-row,.forms{grid-template-columns:1fr}.records{grid-template-columns:1fr;gap:44px}}
 @media(max-width:600px){.wrap{width:calc(100% - 32px)}.hide-sm{display:none}nav{gap:14px}.panel{padding:22px 18px}.ph h2{font-size:23px}.two{grid-template-columns:1fr}.btn{width:100%}nav .btn{width:auto}.acts{display:grid}.vcard{padding:22px}.hero-row{padding-bottom:44px}.quote strong{font-size:28px}}
 </style>
@@ -135,7 +136,7 @@ footer{background:#fff;padding-bottom:30px}
 <div class="stripe" aria-hidden="true"></div>
 <header class="band"><div class="wrap">
 <div class="nav-in"><a class="brand" href="index.html" aria-label="414Unlock home"><span class="mark">414</span><span>Unlock</span></a>
-<nav aria-label="Main navigation"><a class="hide-sm" href="index.html">Home</a><a class="hide-sm" href="services.html">Services &amp; prices</a><a href="admin.html" hidden>Admin</a><a id="logout-link" class="btn btn-o" href="account.html?flow=signin">Sign out</a></nav></div>
+<nav aria-label="Main navigation"><a class="hide-sm" href="index.html">Home</a><a class="hide-sm" href="services.html">Services &amp; prices</a><a class="hide-sm" href="guide.html">Service guide</a><a class="hide-sm" href="contact.html">Support</a><a href="admin.html" hidden>Admin</a><a id="logout-link" class="btn btn-o" href="account.html?flow=signin">Sign out</a></nav></div>
 <div class="top"><div><h1>Wallet &amp; services</h1><p>Manage credit, submit service requests and follow progress in one place.</p></div><div class="account-pill"><span>✓</span><div id="account-email">Checking account…</div></div></div>
 <div class="hero-row">
 <section class="bal"><div class="bal-label">Available wallet balance</div><strong id="wallet-balance">—</strong><p>Your balance updates only after a payment or charge is verified by the server.</p><div class="acts"><a class="btn btn-w" href="#topup">Add credit</a><a class="btn btn-o" href="#new-order">Request service</a></div></section>
@@ -148,6 +149,7 @@ footer{background:#fff;padding-bottom:30px}
 <div class="view" id="v-overview">
 <div class="next"><span class="lbl">Your next step</span><h2 id="next-title">Loading your account…</h2><p id="next-copy">One moment while we check your wallet and verification status.</p><a id="next-cta" class="btn btn-b" href="#topup" hidden>Continue</a></div>
 <div class="tiles"><a class="tile" href="#topup" style="--i:0"><b>1</b><h3>Add credit</h3><p>Pay through SquashberryPay and submit the reference.</p></a><a class="tile" href="#new-order" style="--i:1"><b>2</b><h3>Request a service</h3><p>Choose a price band and send your device details.</p></a><a class="tile" href="#history" style="--i:2"><b>3</b><h3>Follow progress</h3><p>Wallet activity, top-ups and every service request.</p></a></div>
+<p class="help">Need a hand? <a href="contact.html">Contact support</a> or read the <a href="guide.html">service guide</a>.</p>
 </div>
 <div class="view" id="v-credit"><section id="topup" class="panel">
 <div class="ph"><span class="n">1</span><div><h2>Add wallet credit</h2><p>Create a top-up request, pay through the official SquashberryPay route and submit its transaction reference. Credit is added after a manual payment check.</p></div></div>
@@ -179,7 +181,7 @@ footer{background:#fff;padding-bottom:30px}
 <div class="view" id="v-history"><div class="subtabs" id="subtabs"><button type="button" data-h="wallet">Wallet activity</button><button type="button" data-h="topups">Top-up requests</button><button type="button" data-h="orders">Service requests</button></div>
 <section class="rec" id="h-wallet"><h2>Wallet activity</h2><p>Recent credits, service charges and refunds.</p><div id="transaction-list"><div class="empty-records">Sign in to load wallet activity.</div></div></section><section class="rec" id="h-topups"><h2>Top-up requests</h2><p>Follow the payment verification status for each request.</p><div id="topup-list"><div class="empty-records">No top-up requests loaded.</div></div></section><section class="rec" id="h-orders"><h2>My service requests</h2><p>Device identifiers are masked here. Full details are reserved for authorised administrators handling your request.</p><div id="order-list"><div class="empty-records">No service requests loaded.</div></div></section></div>
 </div></main>
-<footer><div class="stripe" aria-hidden="true"></div><div class="wrap foot"><a class="brand" href="index.html"><span class="mark">414</span><span>Unlock</span></a><div class="links"><a href="services.html">Prices</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><button id="refresh-wallet" class="plain-refresh" type="button">Refresh account</button></div><span>© 414Unlock</span></div></footer>
+<footer><div class="stripe" aria-hidden="true"></div><div class="wrap foot"><a class="brand" href="index.html"><span class="mark">414</span><span>Unlock</span></a><div class="links"><a href="services.html">Prices</a><a href="guide.html">Service guide</a><a href="contact.html">Support</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><button id="refresh-wallet" class="plain-refresh" type="button">Refresh account</button></div><span>© 414Unlock</span></div></footer>
 <script>(function(){var $=function(i){return document.getElementById(i)},app=$("app"),tabs=$("tabs"),btns=[].slice.call(tabs.querySelectorAll("button")),subs=[].slice.call($("subtabs").querySelectorAll("button")),map={"#overview":"overview","#topup":"credit","#new-order":"request","#history":"history"},rev={overview:"#overview",credit:"#topup",request:"#new-order",history:"#history"};
 function mark(){var o=tabs.querySelector(".on");if(o){tabs.style.setProperty("--x",o.offsetLeft+"px");tabs.style.setProperty("--w",o.offsetWidth+"px")}}
 function setView(v,push){app.dataset.view=v;btns.forEach(function(b){b.classList.toggle("on",b.dataset.v===v)});mark();if(push&&location.hash!==rev[v])history.replaceState(null,"",rev[v])}
