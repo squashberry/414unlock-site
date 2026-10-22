@@ -1,1 +1,37 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Verification review · 414Unlock</title><link rel="stylesheet" href="site.css"><script src="site-config.js"></script><script defer src="review.js"></script></head><body><header class="topbar"><a class="brand" href="index.html"><span class="brand-mark">414</span><span class="brand-name">UNLOCK</span></a><nav class="topnav"><a href="index.html">Home</a></nav></header><main class="form-page"><div class="form-shell"><section class="form-card"><div class="eyebrow dark-eyebrow">RESTRICTED ADMIN AREA</div><h1>Verification review.</h1><p class="form-intro">This page is not linked from the public home page. It must still be protected by server-side administrator authorization; an unlisted URL is not an access control.</p><div id="message" class="message" role="status"></div><div id="list"></div></section></div></main></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0d1337">
+<title>Verification review · 414Unlock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="414.css"><script src="site-config.js"></script><script defer src="review.js" onerror="window.__fail=1"></script>
+<style>
+.band{background:var(--ink)}.mark{color:var(--ink)}
+.tag{display:inline-block;background:var(--red);color:#fff;font:600 13px var(--body);padding:2px 10px;border-radius:99px;margin-bottom:12px}
+.review-item{background:#fff;border-radius:16px;padding:24px;margin-bottom:16px}
+.review-item h3{font-size:21px;font-weight:750;margin-bottom:4px}
+.review-item p{margin:4px 0 12px;font-size:15px;color:var(--mute);overflow-wrap:anywhere}
+.review-item a{color:var(--blue);text-decoration:underline;text-underline-offset:3px}
+.status-pill{display:inline-block;padding:3px 11px;border-radius:99px;background:#fff0c2;color:#6b4a00;font-size:13px;font-weight:600}
+.review-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:16px;border-top:2px solid var(--ink)}
+.review-actions button{min-height:46px;padding:0 20px;border:2px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font:600 15px var(--body);cursor:pointer}
+.review-actions button:hover{background:var(--chalk)}
+.review-actions .approve{background:var(--green);border-color:var(--green);color:#fff}.review-actions .approve:hover{background:#0f5a2c}
+.review-actions button:disabled{opacity:.45;cursor:not-allowed}
+</style>
+</head>
+<body>
+<div class="stripe" aria-hidden="true"></div>
+<header class="band"><div class="wrap">
+<div class="nav-in"><a class="brand" href="index.html" aria-label="414Unlock home"><span class="mark">414</span><span>Unlock</span></a><nav aria-label="Main navigation"><a href="index.html">Home</a></nav></div>
+<div class="head"><span class="tag">Restricted admin area</span><h1>Verification review</h1><p>This page is not linked from the public home page. It must still be protected by server-side administrator authorization; an unlisted URL is not an access control.</p></div>
+</div></header>
+<main><div class="wrap narrow">
+<div id="message" class="message" role="status"></div>
+<div id="list"></div>
+</div></main>
+<footer><div class="stripe" aria-hidden="true"></div><div class="wrap foot"><a class="brand" href="index.html"><span class="mark" style="background:var(--ink)">414</span><span>Unlock</span></a><span>Private 414Unlock admin</span></div></footer>
+<script>window.addEventListener("load",function(){if(!window.__fail)return;var m=document.getElementById("message");m.textContent="review.js did not load, so the review queue cannot work. Upload review.js to the same folder as review.html.";m.className="message show error"});</script>
+</body>
+</html>
