@@ -1,9 +1,18 @@
 /* 414Unlock splash: shows once per browser session, skipped for reduced-motion users. */
 (function () {
   "use strict";
+  // Plays when the site is opened and on every refresh. It stays out of the way when a visitor
+  // clicks through from another page of the site, or uses the back/forward buttons.
+  // Add ?splash to the address to force it (useful for testing).
   try {
-    if (sessionStorage.getItem("414_splash") || matchMedia("(prefers-reduced-motion:reduce)").matches) return;
-    sessionStorage.setItem("414_splash", "1");
+    var forced = /[?&]splash\b/.test(location.search);
+    if (!forced) {
+      if (matchMedia("(prefers-reduced-motion:reduce)").matches) return;
+      var nav = (performance.getEntriesByType && performance.getEntriesByType("navigation")[0]) || {};
+      var internal = false;
+      try { internal = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (e) {}
+      if (nav.type === "back_forward" || (internal && nav.type !== "reload")) return;
+    }
   } catch (e) {}
 
   var css =
