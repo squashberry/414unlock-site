@@ -10,7 +10,7 @@ class WalletMigrationTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
         self.db.execute("PRAGMA foreign_keys = ON")
-        for migration in ("0001_init.sql", "0002_payments.sql", "0003_wallet_orders.sql", "0004_ios_support_rules.sql", "0005_user_account_controls.sql", "0006_support_chat.sql", "0007_member_management.sql"):
+        for migration in ("0001_init.sql", "0002_payments.sql", "0003_wallet_orders.sql", "0004_ios_support_rules.sql", "0005_user_account_controls.sql", "0006_support_chat.sql", "0007_member_management.sql", "0008_browser_security.sql"):
             self.db.executescript((MIGRATIONS / migration).read_text(encoding="utf-8"))
         self.db.execute(
             "INSERT INTO users (id, full_name, email, password_salt, password_hash, email_verified, created_at) VALUES (?,?,?,?,?,?,?)",
@@ -85,14 +85,39 @@ class WalletMigrationTests(unittest.TestCase):
         self.db.commit()
         self.assertEqual(self.db.execute("SELECT deleted_at,account_active,auth_version FROM users WHERE id='user-1'").fetchone(), (None,1,2))
 
-    def test_password_reset_tokens_are_single_use_records(self):
-        self.db.execute("INSERT INTO password_reset_tokens (id,user_id,token_hash,expires_at,created_at) VALUES ('reset-1','user-1','hashed-reset',3000,1000)")
-        self.db.execute("UPDATE password_reset_tokens SET used_at=2000,used_by='request-1' WHERE id='reset-1' AND used_at IS NULL AND expires_at>2000")
+    def test_browser_security_tables_exist_and_email_token_tables_are_removed(self):
+        tables = {row[0] for row in self.db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )}
+        self.assertIn("auth_browser_challenges", tables)
+        self.assertIn("auth_security_events", tables)
+        self.assertNotIn("email_codes", tables)
+        self.assertNotIn("password_reset_tokens", tables)
+
+        self.db.execute(
+            "INSERT INTO auth_browser_challenges "
+            "(id,purpose,nonce_hash,ip_hash,user_agent_hash,expires_at,created_at) "
+            "VALUES ('challenge-1','login','nonce-hash','ip-hash','agent-hash',3000,1000)"
+        )
+        self.db.execute(
+            "UPDATE auth_browser_challenges SET used_at=2000 "
+            "WHERE id='challenge-1' AND used_at IS NULL AND expires_at>2000"
+        )
         self.db.commit()
-        self.assertEqual(self.db.execute("SELECT used_at,used_by FROM password_reset_tokens WHERE id='reset-1'").fetchone(), (2000,"request-1"))
-        again = self.db.execute("UPDATE password_reset_tokens SET used_at=2100,used_by='request-2' WHERE id='reset-1' AND used_at IS NULL AND expires_at>2100")
+        self.assertEqual(
+            self.db.execute("SELECT used_at FROM auth_browser_challenges WHERE id='challenge-1'").fetchone()[0],
+            2000,
+        )
+        self.db.execute(
+            "INSERT INTO auth_security_events "
+            "(id,action,outcome,reason,ip_hash,email_hash,country,asn,user_agent_hash,created_at) "
+            "VALUES ('event-1','login_failed','blocked','invalid_credentials','ip-hash','email-hash','GM','64512','agent-hash',2000)"
+        )
         self.db.commit()
-        self.assertEqual(again.rowcount, 0)
+        self.assertEqual(
+            self.db.execute("SELECT outcome,reason FROM auth_security_events WHERE id='event-1'").fetchone(),
+            ("blocked", "invalid_credentials"),
+        )
 
     def test_support_tickets_and_messages_are_created_and_can_be_closed(self):
         self.db.execute(
