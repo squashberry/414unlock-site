@@ -15,7 +15,8 @@ window.UNLOCK414_CONFIG = Object.freeze({
   var TOKEN_KEY = "414unlock_token";
   var FLOW_KEY = "414unlock_flow";
   var config = window.UNLOCK414_CONFIG || {};
-  var api = String(config.API_BASE_URL || "").replace(/\\/+$/, "");
+  var api = String(config.API_BASE_URL || "");
+  while (api.endsWith("/")) api = api.slice(0, -1);
   var token = readToken();
 
   function store(name) {
@@ -63,15 +64,14 @@ window.UNLOCK414_CONFIG = Object.freeze({
     (document.head || document.documentElement).appendChild(style);
   }
   function isHomeLink(anchor) {
-    var href = String(anchor.getAttribute("href") || "").split(/[?#]/)[0].toLowerCase();
-    return href === "index.html" || /^https?:\\/\\/[^/]+\\/index\\.html$/.test(href);
+    var href = String(anchor.getAttribute("href") || "").split("?")[0].split("#")[0].toLowerCase();
+    return href === "index.html" || href.endsWith("/index.html");
   }
   function isAccountAction(anchor) {
     var href = String(anchor.getAttribute("href") || "").toLowerCase();
-    var label = String(anchor.textContent || "").replace(/\\s+/g, " ").trim().toLowerCase();
-    return /account\\.html(?:[?#]|$)/.test(href) ||
-      /^(dashboard|my wallet|sign in|create account|sign out|sign out \\/ switch account)$/.test(label) ||
-      href === "dashboard.html";
+    var label = String(anchor.textContent || "").trim().toLowerCase();
+    var labels = ["dashboard", "my wallet", "sign in", "create account", "sign out", "sign out / switch account"];
+    return href.indexOf("account.html") >= 0 || href === "dashboard.html" || labels.indexOf(label) >= 0;
   }
   function makeLink(text, href, className) {
     var anchor = document.createElement("a");
@@ -132,35 +132,37 @@ window.UNLOCK414_CONFIG = Object.freeze({
     if (!nav) return;
     var signOut = nav.querySelector("#logout-link") ||
       Array.prototype.find.call(nav.querySelectorAll("a"), function (anchor) {
-        return /sign out/i.test(anchor.textContent || "");
+        return String(anchor.textContent || "").toLowerCase().indexOf("sign out") >= 0;
       });
-    if (signOut) bindSignOut(signOut);
+    if (signOut && !signOut.getAttribute("data-auth-action")) bindSignOut(signOut);
   }
   function normalizeOtherAccountLinks(signedIn) {
     var anchors = document.querySelectorAll("a[href]");
     Array.prototype.forEach.call(anchors, function (anchor) {
       if (anchor.closest("nav[aria-label='Main navigation'],nav.nav,nav[aria-label='Admin navigation']")) return;
       var href = String(anchor.getAttribute("href") || "");
-      var label = String(anchor.textContent || "").replace(/\\s+/g, " ").trim().toLowerCase();
-      var isSignIn = /account\\.html\\?flow=signin/i.test(href);
-      var isSignUp = /account\\.html\\?flow=signup/i.test(href);
-      var isDashboard = /(^|\\/)dashboard\\.html(?:[?#]|$)/i.test(href);
+      var label = String(anchor.textContent || "").trim().toLowerCase();
+      var isSignIn = href.toLowerCase().indexOf("account.html?flow=signin") >= 0;
+      var isSignUp = href.toLowerCase().indexOf("account.html?flow=signup") >= 0;
+      var isDashboard = href.split("?")[0].split("#")[0].toLowerCase().endsWith("dashboard.html");
+
       if (signedIn && (isSignIn || isSignUp)) {
-        if (/return=support/i.test(href) || /sign in to chat/i.test(label)) {
+        if (href.toLowerCase().indexOf("return=support") >= 0 || label === "sign in to chat") {
           anchor.href = "#new-ticket-form";
           if (!anchor.querySelector("*")) anchor.textContent = "Open support chat";
         } else {
           anchor.href = "dashboard.html";
-          if (!anchor.querySelector("*") && /^(sign in|create account|account|my wallet|dashboard|open my account|back to sign in)$/.test(label)) {
+          if (!anchor.querySelector("*") && ["sign in", "create account", "account", "my wallet", "dashboard", "open my account", "back to sign in"].indexOf(label) >= 0) {
             anchor.textContent = "Dashboard";
           }
         }
       } else if (!signedIn && isDashboard) {
         anchor.href = "account.html?flow=signin";
-        if (!anchor.querySelector("*") && /^(dashboard|my wallet)$/.test(label)) anchor.textContent = "Sign in";
+        if (!anchor.querySelector("*") && ["dashboard", "my wallet"].indexOf(label) >= 0) anchor.textContent = "Sign in";
       }
+
       if (anchor.closest("footer")) {
-        if (signedIn && /account\\.html/i.test(href)) {
+        if (signedIn && (isSignIn || isSignUp)) {
           anchor.href = "dashboard.html";
           if (!anchor.querySelector("*")) anchor.textContent = "Dashboard";
         } else if (!signedIn && isDashboard) {
@@ -197,7 +199,6 @@ window.UNLOCK414_CONFIG = Object.freeze({
         return { signedIn: true, unverified: true };
       });
     }).catch(function () {
-      // A temporary network failure must not show Sign in and Create account beside an existing session.
       return { signedIn: true, unverified: true };
     });
   }
