@@ -1,15 +1,15 @@
 (function(){
   "use strict";
-  var cfg=window.UNLOCK414_CONFIG||{},api=(cfg.API_BASE_URL||"").replace(/\/+$/,"");
+  var cfg=window.UNLOCK414_CONFIG||{},api=(cfg.API_BASE_URL||"").replace(/\/+$/,""),session=window.UNLOCK414_SESSION||null;
   var params=new URLSearchParams(location.search),mode=params.get("flow")==="signup"?"signup":"signin";
   var returnTarget=params.get("return")||"",returnToApp=returnTarget==="app",paymentLaunch=params.get("launch")||"",appState=params.get("state")||"",appCallback=params.get("callback")||"";
-  var form=document.getElementById("auth-form"),nameWrap=document.getElementById("name-wrap"),message=document.getElementById("message"),submit=document.getElementById("submit-button"),tabs=[document.getElementById("tab-signin"),document.getElementById("tab-signup")],heading=document.getElementById("heading"),intro=document.getElementById("intro"),passwordHint=document.getElementById("password-hint"),passwordInput=document.getElementById("password"),browserPanel=document.getElementById("browser-check-panel"),browserStatus=document.getElementById("browser-check-status");
+  var form=document.getElementById("auth-form"),nameWrap=document.getElementById("name-wrap"),message=document.getElementById("message"),submit=document.getElementById("submit-button"),tabs=[document.getElementById("tab-signin"),document.getElementById("tab-signup")],heading=document.getElementById("heading"),intro=document.getElementById("intro"),passwordHint=document.getElementById("password-hint"),passwordInput=document.getElementById("password"),authView=document.getElementById("auth-view"),browserView=document.getElementById("browser-check-view"),browserStatus=document.getElementById("browser-check-status");
   function showMessage(text,type){message.textContent=text;message.className="message show "+(type||"info");}
   function setBusy(b){submit.disabled=b;submit.style.opacity=b?".65":"1";}
   function configured(){if(api&&!api.includes("YOUR_")&&!api.includes("example.workers.dev"))return true;showMessage("Secure account services are not connected yet. Please contact support.", "error");return false;}
   async function request(path,options){var res=await fetch(api+path,options||{}),data={};try{data=await res.json();}catch(_){}if(!res.ok)throw new Error(data.message||data.error||("Request failed ("+res.status+")"));return data;}
-  function browserState(text){browserPanel.classList.remove("hidden");browserStatus.textContent=text;}
-  function hideBrowserState(){browserPanel.classList.add("hidden");}
+  function browserState(text){authView.classList.add("hidden");browserView.classList.remove("hidden");browserStatus.textContent=text;document.title="Verifying browser · 414Unlock";}
+  function hideBrowserState(){browserView.classList.add("hidden");authView.classList.remove("hidden");document.title=(mode==="signup"?"Create account":"Sign in")+" · 414Unlock";}
   function leadingZeroBits(bytes){var total=0;for(var i=0;i<bytes.length;i++){var value=bytes[i];if(value===0){total+=8;continue;}for(var bit=7;bit>=0;bit--){if(value&(1<<bit))return total;total++;}return total;}return total;}
   function toHex(bytes){return Array.from(bytes,function(b){return b.toString(16).padStart(2,"0");}).join("");}
   async function createBrowserProof(purpose,email){
@@ -54,7 +54,7 @@
     showMessage("Sign-in complete. Returning to 414Unlock…","success");location.href=targetCb+"?code="+encodeURIComponent(code)+"&state="+encodeURIComponent(appState);
   }
   async function routeAuthenticated(token,flow){
-    sessionStorage.setItem("414unlock_token",token);sessionStorage.setItem("414unlock_flow",flow);
+    if(session&&session.setToken)session.setToken(token,flow);else{localStorage.setItem("414unlock_token",token);sessionStorage.setItem("414unlock_token",token);localStorage.setItem("414unlock_flow",flow);sessionStorage.setItem("414unlock_flow",flow);}
     if(flow==="signup"){
       var verificationUrl="verify.html?source=signup";
       if(returnToApp)verificationUrl+="&return=app&state="+encodeURIComponent(appState)+(appCallback?"&callback="+encodeURIComponent(appCallback):"");

@@ -5,7 +5,7 @@
 <title>My wallet · 414Unlock</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600&display=swap">
-<script src="site-config.js"></script><script src="geo-guard.js"></script><script defer src="dashboard.js"></script>
+<script src="site-config.js"></script><script src="auth-session.js"></script><script src="geo-guard.js"></script><script defer src="dashboard.js"></script>
 <style>
 :root{--blue:#0b1f8f;--deep:#071463;--ink:#0d1337;--chalk:#eef1f8;--line:#d5dbec;--green:#17703a;--red:#cf1b2e;--mute:#586080;--disp:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;--body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
 *{box-sizing:border-box}[hidden]{display:none!important}html{scroll-behavior:smooth}
@@ -135,8 +135,8 @@ footer{background:#fff;padding-bottom:30px}
 <body>
 <div class="stripe" aria-hidden="true"></div>
 <header class="band"><div class="wrap">
-<div class="nav-in"><a class="brand" href="index.html" aria-label="414Unlock home"><span class="mark">414</span><span>Unlock</span></a>
-<nav aria-label="Main navigation"><a class="hide-sm" href="index.html">Home</a><a class="hide-sm" href="services.html">Services &amp; prices</a><a class="hide-sm" href="guide.html">Service guide</a><a class="hide-sm" href="contact.html">Support</a><a href="admin.html" hidden>Admin</a><a id="logout-link" class="btn btn-o" href="account.html?flow=signin">Sign out</a></nav></div>
+<div class="nav-in"><a class="brand" href="dashboard.html" aria-label="414Unlock dashboard"><span class="mark">414</span><span>Unlock</span></a>
+<nav aria-label="Main navigation"><a class="hide-sm" href="dashboard.html">Dashboard</a><a class="hide-sm" href="services.html">Services &amp; prices</a><a class="hide-sm" href="guide.html">Service guide</a><a class="hide-sm" href="contact.html">Support</a><a href="admin.html" hidden>Admin</a><a id="logout-link" class="btn btn-o" href="account.html?flow=signin">Sign out</a></nav></div>
 <div class="top"><div><h1>Wallet &amp; services</h1><p>Manage credit, submit service requests and follow progress in one place.</p></div><div class="account-pill"><span>✓</span><div id="account-email">Checking account…</div></div></div>
 <div class="hero-row">
 <section class="bal"><div class="bal-label">Available wallet balance</div><strong id="wallet-balance">—</strong><p>Your balance updates only after a payment or charge is verified by the server.</p><div class="acts"><a class="btn btn-w" href="#topup">Add credit</a><a class="btn btn-o" href="#new-order">Request service</a></div></section>

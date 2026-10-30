@@ -62,6 +62,12 @@ The current adapter sends a POST over HTTPS containing `confirmationCode` and `r
 
 The wallet top-up workflow in this revision is deliberately **manual-review**: a transaction reference submitted by the user is not proof of payment; an administrator must confirm payment in SquashberryPay. It does not assume an undocumented provider API or treat a URL redirect as payment confirmation.
 
+## Desktop app updates
+
+- `GET /api/app/update?version=1.2.3&platform=windows` is public and returns the latest/minimum supported app versions, optional/mandatory update flags, release URL and plain-text release notes. It is available even when the public website is in service mode.
+- Administrators publish the update policy through `POST /api/admin/site-controls` using `appLatestVersion`, `appMinimumVersion`, `appReleaseUrl`, `appReleaseNotes` and `appForceUpdate`. Values are validated and stored in the existing `site_controls` table.
+- See the repository root `APP_UPDATE_CONTRACT.md` for the Windows installer/client behavior expected by Antigravity.
+
 ## Other API routes
 
 Direct signup, Squashberry rotating browser verification, login, current account, single-use desktop handoff codes, verification status/submission, administrator identity-review queue, private document access and approve/reject are also present.

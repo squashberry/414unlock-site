@@ -1,7 +1,7 @@
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const PASSWORD_ITERATIONS = 100000; // Cloudflare Workers rejects PBKDF2 deriveBits counts above 100,000.
-const TOKEN_TTL_SECONDS = 3600;
+const TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60; // Keep a normal browser session signed in for seven days.
 const APP_CODE_TTL_SECONDS = 120;
 const MAX_DOCUMENT_BYTES = 7 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["application/pdf", "image/png", "image/jpeg"]);
@@ -41,11 +41,11 @@ export default {
         }, ready ? 200 : 503, headers);
       }
       const siteControls = await readSiteControls(env);
-      if (siteControls.geoRestriction && !isSupportedCountry(request)) {
+      if (path !== "/api/app/update" && siteControls.geoRestriction && !isSupportedCountry(request)) {
         if (env.DB && env.JWT_SECRET) { try { await recordSecurityEvent(env, await requestIdentity(request, env), "country_gate", "blocked", "unsupported_country", ""); } catch (_) {} }
         return countryNotSupported(headers);
       }
-      if (siteControls.serviceMode && !path.startsWith("/api/admin/") && !["/api/access/check","/api/health","/api/auth/browser-challenge","/api/auth/login","/api/auth/me"].includes(path)) {
+      if (siteControls.serviceMode && !path.startsWith("/api/admin/") && !["/api/access/check","/api/health","/api/app/update","/api/auth/browser-challenge","/api/auth/login","/api/auth/me"].includes(path)) {
         return json({error:"SERVICE_MODE",message:siteControls.serviceMessage,returnAt:siteControls.returnAt},503,headers);
       }
       if (path === "/api/auth/signup" && !siteControls.signupEnabled) return json({error:"SIGNUP_PAUSED",message:"New registrations are temporarily unavailable."},503,headers);
@@ -56,6 +56,7 @@ export default {
       if (request.method === "GET" && path === "/api/access/check") {
         return json({ok:true,supported:true,serviceMode:siteControls.serviceMode,serviceMessage:siteControls.serviceMessage,returnAt:siteControls.returnAt,controls:siteControls.publicControls},200,headers);
       }
+      if (request.method === "GET" && path === "/api/app/update") return getAppUpdate(request, siteControls, headers);
       if (!env.DB) return json({ error: "SERVICE_NOT_CONFIGURED", message: "The account database is not configured." }, 503, headers);
       if (!env.JWT_SECRET || env.JWT_SECRET.length < 32) return json({ error: "SERVICE_NOT_CONFIGURED", message: "The account service is not fully configured." }, 503, headers);
       if (request.method === "POST" && path === "/api/admin/bootstrap") return await bootstrapFirstAdmin(request, env, headers);
@@ -130,7 +131,10 @@ export default {
 const DEFAULT_SITE_CONTROLS = Object.freeze({
   serviceMode:false, serviceMessage:"We're carrying out scheduled maintenance. Please check back shortly.",
   returnAt:0, geoRestriction:true, signupEnabled:true, loginEnabled:true,
-  paymentsEnabled:true, supportEnabled:true, newOrdersEnabled:true
+  paymentsEnabled:true, supportEnabled:true, newOrdersEnabled:true,
+  appLatestVersion:"0.0.0", appMinimumVersion:"0.0.0",
+  appReleaseUrl:"https://github.com/squashberry/414unlock-site/releases/latest",
+  appReleaseNotes:"", appForceUpdate:false, appPublishedAt:0
 });
 async function readSiteControls(env) {
   const out={...DEFAULT_SITE_CONTROLS};
@@ -139,9 +143,12 @@ async function readSiteControls(env) {
     const rows=await env.DB.prepare("SELECT control_key,control_value FROM site_controls").all();
     for(const row of rows.results||[]){
       const k=row.control_key,v=row.control_value;
-      if(k==="serviceMode"||k==="geoRestriction"||k==="signupEnabled"||k==="loginEnabled"||k==="paymentsEnabled"||k==="supportEnabled"||k==="newOrdersEnabled")out[k]=v==="true";
-      else if(k==="returnAt")out.returnAt=Math.max(0,Number(v)||0);
+      if(k==="serviceMode"||k==="geoRestriction"||k==="signupEnabled"||k==="loginEnabled"||k==="paymentsEnabled"||k==="supportEnabled"||k==="newOrdersEnabled"||k==="appForceUpdate")out[k]=v==="true";
+      else if(k==="returnAt"||k==="appPublishedAt")out[k]=Math.max(0,Number(v)||0);
       else if(k==="serviceMessage")out.serviceMessage=String(v).slice(0,500);
+      else if(k==="appLatestVersion"||k==="appMinimumVersion") { if(isValidAppVersion(v))out[k]=String(v); }
+      else if(k==="appReleaseUrl") { if(isHttpsUrl(v))out[k]=String(v).slice(0,500); }
+      else if(k==="appReleaseNotes")out[k]=String(v).slice(0,4000);
     }
   } catch(_) {}
   out.publicControls={geoRestriction:out.geoRestriction,signupEnabled:out.signupEnabled,loginEnabled:out.loginEnabled,paymentsEnabled:out.paymentsEnabled,supportEnabled:out.supportEnabled,newOrdersEnabled:out.newOrdersEnabled};
@@ -154,17 +161,45 @@ async function getAdminSiteControls(request,env,headers){
 async function saveAdminSiteControls(request,env,headers){
   try{
     const admin=await requireAdmin(request,env),body=await readJson(request),now=Math.floor(Date.now()/1000);
-    const boolKeys=["serviceMode","geoRestriction","signupEnabled","loginEnabled","paymentsEnabled","supportEnabled","newOrdersEnabled"];
+    const boolKeys=["serviceMode","geoRestriction","signupEnabled","loginEnabled","paymentsEnabled","supportEnabled","newOrdersEnabled","appForceUpdate"];
     const values={};
     for(const k of boolKeys)if(typeof body[k]==="boolean")values[k]=String(body[k]);
     if(typeof body.serviceMessage==="string")values.serviceMessage=body.serviceMessage.trim().slice(0,500)||DEFAULT_SITE_CONTROLS.serviceMessage;
+    if(body.appLatestVersion!==undefined){if(!isValidAppVersion(body.appLatestVersion))throw new ApiError(400,"INVALID_APP_VERSION","Enter the latest app version as major.minor.patch, for example 1.2.3.");values.appLatestVersion=String(body.appLatestVersion).trim();values.appPublishedAt=String(now);}
+    if(body.appMinimumVersion!==undefined){if(!isValidAppVersion(body.appMinimumVersion))throw new ApiError(400,"INVALID_APP_VERSION","Enter the minimum supported version as major.minor.patch, for example 1.0.0.");values.appMinimumVersion=String(body.appMinimumVersion).trim();}
+    if(body.appReleaseUrl!==undefined){if(typeof body.appReleaseUrl!=="string"||body.appReleaseUrl.trim().length>500||!isHttpsUrl(body.appReleaseUrl))throw new ApiError(400,"INVALID_APP_RELEASE_URL","Use a valid HTTPS release or installer download URL no longer than 500 characters.");values.appReleaseUrl=body.appReleaseUrl.trim();}
+    if(body.appReleaseNotes!==undefined){if(typeof body.appReleaseNotes!=="string")throw new ApiError(400,"INVALID_APP_RELEASE_NOTES","Release notes must be text.");values.appReleaseNotes=body.appReleaseNotes.trim().slice(0,4000);}
     if(body.returnAt!==undefined){const n=Number(body.returnAt);if(!Number.isFinite(n)||n<0||n>4102444800)throw new ApiError(400,"INVALID_RETURN_TIME","Choose a valid return date and time.");values.returnAt=String(Math.floor(n));}
+    const effective=await readSiteControls(env);
+    const nextLatest=values.appLatestVersion||effective.appLatestVersion;
+    const nextMinimum=values.appMinimumVersion||effective.appMinimumVersion;
+    if(compareAppVersions(nextMinimum,nextLatest)>0)throw new ApiError(400,"INVALID_APP_VERSION_RANGE","The minimum supported version cannot be newer than the latest version.");
     if(!Object.keys(values).length)throw new ApiError(400,"NO_CHANGES","Choose at least one setting to update.");
     const stmts=Object.entries(values).map(([k,v])=>env.DB.prepare("INSERT INTO site_controls(control_key,control_value,updated_by,updated_at) VALUES(?,?,?,?) ON CONFLICT(control_key) DO UPDATE SET control_value=excluded.control_value,updated_by=excluded.updated_by,updated_at=excluded.updated_at").bind(k,v,admin.email,now));
     await env.DB.batch(stmts);
     try{await env.DB.prepare("INSERT INTO admin_audit_log(id,actor_email,action,created_at) VALUES(?,?,?,?)").bind(randomHex(16),admin.email,"site_controls_updated:"+Object.keys(values).join(","),now).run();}catch(_){}
     return json({ok:true,controls:await readSiteControls(env),message:"Website controls saved."},200,headers);
   }catch(error){throwOrReturn(error,headers);}
+}
+
+function isValidAppVersion(value) {
+  return /^\d{1,6}\.\d{1,6}\.\d{1,6}$/.test(String(value||"").trim());
+}
+function compareAppVersions(a,b) {
+  const left=String(a||"0.0.0").split(".").map(Number),right=String(b||"0.0.0").split(".").map(Number);
+  for(let i=0;i<3;i++){const x=left[i]||0,y=right[i]||0;if(x!==y)return x<y?-1:1;}return 0;
+}
+function isHttpsUrl(value) {
+  try{const u=new URL(String(value||""));return u.protocol==="https:"&&!u.username&&!u.password&&!!u.hostname;}catch(_){return false;}
+}
+function getAppUpdate(request,controls,headers) {
+  const url=new URL(request.url),current=String(url.searchParams.get("version")||"").trim(),platform=String(url.searchParams.get("platform")||"windows").trim().toLowerCase();
+  if(!isValidAppVersion(current))return json({ok:false,error:"INVALID_APP_VERSION",message:"A valid app version is required in major.minor.patch format."},400,headers);
+  if(platform!=="windows")return json({ok:false,error:"UNSUPPORTED_PLATFORM",message:"This update channel currently supports the Windows desktop app."},400,headers);
+  const latest=controls.appLatestVersion||DEFAULT_SITE_CONTROLS.appLatestVersion,minimum=controls.appMinimumVersion||DEFAULT_SITE_CONTROLS.appMinimumVersion;
+  const updateAvailable=compareAppVersions(current,latest)<0;
+  const updateRequired=updateAvailable&&(controls.appForceUpdate||compareAppVersions(current,minimum)<0);
+  return json({ok:true,product:"414Unlock",channel:"stable",platform,currentVersion:current,latestVersion:latest,minimumVersion:minimum,updateAvailable,updateRequired,forceUpdate:updateRequired,releaseUrl:controls.appReleaseUrl||DEFAULT_SITE_CONTROLS.appReleaseUrl,releaseNotes:controls.appReleaseNotes||"",publishedAt:Number(controls.appPublishedAt)||0,checkedAt:Math.floor(Date.now()/1000),message:updateRequired?"Please update 414Unlock before continuing.":updateAvailable?"A newer version of 414Unlock is available.":"You are using the latest version."},200,headers);
 }
 
 function isSupportedCountry(request) { const cf=request&&request.cf||{};const code=String(cf.country||request.headers.get("cf-ipcountry")||"").trim().toUpperCase();return code==="GM"; }

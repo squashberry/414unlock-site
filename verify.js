@@ -1,6 +1,6 @@
 (function(){
 "use strict";
-var cfg=window.UNLOCK414_CONFIG||{},api=(cfg.API_BASE_URL||"").replace(/\/+$/,""),token=sessionStorage.getItem("414unlock_token"),form=document.getElementById("verify-form"),msg=document.getElementById("message"),submit=document.getElementById("submit-button"),statusArea=document.getElementById("status-area"),submitted=document.getElementById("submitted-view"),returnMsg=document.getElementById("return-message"),fileInput=document.getElementById("document"),docLabel=document.getElementById("document-label");
+var cfg=window.UNLOCK414_CONFIG||{},api=(cfg.API_BASE_URL||"").replace(/\/+$/,""),session=window.UNLOCK414_SESSION||null,token=session&&session.getToken?session.getToken():(localStorage.getItem("414unlock_token")||sessionStorage.getItem("414unlock_token")),form=document.getElementById("verify-form"),msg=document.getElementById("message"),submit=document.getElementById("submit-button"),statusArea=document.getElementById("status-area"),submitted=document.getElementById("submitted-view"),returnMsg=document.getElementById("return-message"),fileInput=document.getElementById("document"),docLabel=document.getElementById("document-label");
 function show(el,text,type){el.textContent=text;el.className="message show "+(type||"info");}
 function hide(el){el.classList.add("hidden");}
 function showStatus(text){statusArea.textContent=text;statusArea.classList.remove("hidden");}

@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0d1337"><meta name="robots" content="noindex,nofollow">
 <title>Admin workspace · 414Unlock</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="414.css">
-<script src="site-config.js"></script><script src="geo-guard.js"></script><script defer src="admin.js" onerror="window.__fail=1"></script>
+<script src="site-config.js"></script><script src="auth-session.js"></script><script src="geo-guard.js"></script><script defer src="admin.js" onerror="window.__fail=1"></script>
 
 </head>
 <body class="admin-page">
@@ -92,6 +92,19 @@
     <label class="field"><span><input type="checkbox" id="site-support"> Enable customer support inbox</span></label>
    </div>
    <div class="ios-rule-actions"><button type="button" id="site-controls-save" class="portal-button portal-button-dark portal-submit">Save website controls</button><button type="button" id="site-controls-refresh" class="portal-button portal-button-outline">Reload current settings</button></div>
+   <div class="ios-rule-editor" style="margin-top:20px">
+    <h3>Desktop app updates</h3>
+    <p class="admin-note">Publish the current Windows app version and its installer/release link. The desktop app and installer can check the public update endpoint and prompt users when a newer or mandatory version is available.</p>
+    <div id="app-update-status" class="ios-support-status" role="status" aria-live="polite">Update policy is loading…</div>
+    <div class="ios-rule-form">
+     <div class="field"><label for="app-latest-version">Latest app version</label><input id="app-latest-version" type="text" maxlength="32" inputmode="decimal" placeholder="1.2.3" autocomplete="off"><small>Use major.minor.patch format.</small></div>
+     <div class="field"><label for="app-minimum-version">Minimum supported version</label><input id="app-minimum-version" type="text" maxlength="32" inputmode="decimal" placeholder="1.0.0" autocomplete="off"><small>Older versions receive a blocking update requirement.</small></div>
+     <div class="field span-two"><label for="app-release-url">Release / installer download URL</label><input id="app-release-url" type="url" maxlength="500" placeholder="https://github.com/.../releases/latest" autocomplete="url"></div>
+     <div class="field span-two"><label for="app-release-notes">Release notes</label><textarea id="app-release-notes" rows="4" maxlength="4000" placeholder="What changed in this release…"></textarea></div>
+     <label class="field span-two"><span><input type="checkbox" id="app-force-update"> Require this version from every older app version</span></label>
+     <div class="ios-rule-actions span-two"><button type="button" id="app-update-save" class="portal-button portal-button-dark portal-submit">Publish app update</button></div>
+    </div>
+   </div>
   </div>
  </section>
  <section id="ios-support-section" hidden>
