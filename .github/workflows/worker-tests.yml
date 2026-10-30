@@ -71,7 +71,7 @@ jobs:
           required = {
               "users", "verification_submissions", "payment_sessions",
               "wallets", "wallet_transactions", "topup_requests",
-              "service_orders", "ios_support_rules"
+              "service_orders", "ios_support_rules", "auth_browser_challenges", "auth_security_events"
           }
           present = {row[0] for row in db.execute(
               "SELECT name FROM sqlite_master WHERE type='table'"
@@ -79,6 +79,9 @@ jobs:
           missing = required - present
           if missing:
               raise SystemExit("Missing tables after migrations: " + ", ".join(sorted(missing)))
+          obsolete = {"email_codes", "password_reset_tokens"} & present
+          if obsolete:
+              raise SystemExit("Obsolete email-auth tables remain: " + ", ".join(sorted(obsolete)))
 
           db.execute(
               "INSERT INTO ios_support_rules "
