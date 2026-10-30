@@ -6,6 +6,12 @@ on:
       - "worker/**"
       - "admin.html"
       - "admin.js"
+      - "account.html"
+      - "account.js"
+      - "admin-setup.html"
+      - "geo-guard.js"
+      - "site-config.js"
+      - "forgot.html"
       - "support.html"
       - "support.js"
       - ".github/workflows/worker-tests.yml"
@@ -39,9 +45,10 @@ jobs:
         run: |
           node --check worker/src/index.js
           node --check admin.js
+          node --check account.js
 
-      - name: Run iOS policy unit tests
-        run: node --test worker/tests/ios-policy.test.mjs
+      - name: Run Worker security and policy unit tests
+        run: node --test worker/tests/ios-policy.test.mjs worker/tests/browser-security.test.mjs
 
       - name: Run wallet and account-control regression tests
         run: python3 -m unittest worker/tests/test_migrations.py
