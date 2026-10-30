@@ -7,7 +7,7 @@ This is the server-side API for the 414Unlock website. It is separate from GitHu
 1. Create a Cloudflare D1 database named `414unlock-auth`.
 2. Create a private R2 bucket named `414unlock-private-documents`.
 3. Put the real D1 database ID into `wrangler.toml`.
-4. Apply migrations in order: `0001_init.sql`, `0002_payments.sql`, `0003_wallet_orders.sql`, and `0004_ios_support_rules.sql`. Example: `wrangler d1 migrations apply 414unlock-auth --remote`.
+4. Apply migrations in order: `0001_init.sql`, `0002_payments.sql`, `0003_wallet_orders.sql`, and `0004_ios_support_rules.sql`, then `0005_user_account_controls.sql`. Example: `wrangler d1 migrations apply 414unlock-auth --remote`.
 5. Set secrets with `wrangler secret put JWT_SECRET`, `RESEND_API_KEY`, `FROM_EMAIL`, `ADMIN_EMAILS`, and `DEVICE_DATA_ENCRYPTION_KEY`.
 6. Make sure `FROM_EMAIL` is a sender verified with Resend. Use your own secure random values for the secrets; never commit them to GitHub.
 7. Deploy with `wrangler deploy`.
@@ -22,6 +22,8 @@ The `DEVICE_DATA_ENCRYPTION_KEY` must be a high-entropy random secret of at leas
 - `POST /api/wallet/topups` — creates a top-up request for D50–D100,000 and returns a unique `414T-` request reference. It does not credit the wallet.
 - `POST /api/wallet/topups/:id/submit-reference` — authenticated user submits the SquashberryPay transaction reference. The request becomes pending for review.
 - `GET /api/admin/queue` — admin-only queue for payment review and active service requests; full device identifiers are decrypted only for a configured administrator.
+- `GET /api/admin/users?q=...` — admin-only user directory with email-verification state, latest identity-review state, wallet balance, service/top-up counts, and account status. Search matches name or email.
+- `POST /api/admin/users/:id/status` — admin-only account activation control. Send `{"active":false,"note":"..."}` to deactivate or `{"active":true,"note":"..."}` to reactivate. Deactivation blocks login, desktop-code redemption, and every existing API token immediately. It never deletes user data, wallet balance, or transaction history. Configured administrator accounts cannot be deactivated through this endpoint. Changes are written to `admin_audit_log` and are available in the Users tab of `admin.html`.
 - `POST /api/admin/topups/:id/review` — admin approves/rejects a pending top-up. An approved status transition credits the wallet through a database trigger and creates one ledger entry. Check the actual transaction inside SquashberryPay before approving.
 - `POST /api/orders` — creates a priced service request after approved account verification, authorisation acknowledgements, and a sufficient wallet balance. The price is calculated on the server, not trusted from the browser.
 - `POST /api/admin/orders/:id/status` — admin moves a service request through submitted → registered → processing → completed, or rejects it. A request rejected before processing starts is refunded automatically; rejection after processing starts does not trigger an automatic refund.

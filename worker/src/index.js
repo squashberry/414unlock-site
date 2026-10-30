@@ -45,7 +45,7 @@ export default {
           }
         }, ready ? 200 : 503, headers);
       }
-      if (!env.DB || !env.DOCUMENTS) return json({ error: "SERVICE_NOT_CONFIGURED", message: "The account service is not fully configured." }, 503, headers);
+      if (!env.DB) return json({ error: "SERVICE_NOT_CONFIGURED", message: "The account database is not configured." }, 503, headers);
       if (!env.JWT_SECRET || env.JWT_SECRET.length < 32) return json({ error: "SERVICE_NOT_CONFIGURED", message: "The account service is not fully configured." }, 503, headers);
       if (request.method === "POST" && path === "/api/auth/signup") return await signup(request, env, headers);
       if (request.method === "POST" && path === "/api/auth/verify-email") return await verifyEmail(request, env, headers);
@@ -59,6 +59,9 @@ export default {
       if (request.method === "POST" && submitTopupMatch) return await submitTopupReference(request, env, headers, submitTopupMatch[1]);
       if (request.method === "POST" && path === "/api/orders") return await createServiceOrder(request, env, headers);
       if (request.method === "GET" && path === "/api/admin/queue") return await adminQueue(request, env, headers);
+      if (request.method === "GET" && path === "/api/admin/users") return await listAdminUsers(request, env, headers);
+      const adminUserStatusMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/status$/i);
+      if (request.method === "POST" && adminUserStatusMatch) return await updateAdminUserStatus(request, env, headers, adminUserStatusMatch[1]);
       const adminTopupMatch = path.match(/^\/api\/admin\/topups\/([a-f0-9]{32})\/review$/i);
       if (request.method === "POST" && adminTopupMatch) return await reviewTopup(request, env, headers, adminTopupMatch[1]);
       const adminOrderMatch = path.match(/^\/api\/admin\/orders\/([a-f0-9]{32})\/status$/i);
@@ -172,11 +175,12 @@ async function readToken(request, env) {
   let claims;
   try { claims = JSON.parse(decoder.decode(fromBase64url(parts[1]))); } catch (_) { throw new ApiError(401, "INVALID_SESSION", "Your session is invalid. Sign in again."); }
   if (!claims.sub || !claims.exp || claims.iss !== "414unlock-auth" || claims.exp <= Math.floor(Date.now() / 1000)) throw new ApiError(401, "SESSION_EXPIRED", "Your session expired. Sign in again.");
-  const user = await env.DB.prepare("SELECT id, full_name, email, email_verified, created_at FROM users WHERE id = ?").bind(claims.sub).first();
+  const user = await env.DB.prepare("SELECT id, full_name, email, email_verified, created_at, account_active FROM users WHERE id = ?").bind(claims.sub).first();
   if (!user || !user.email_verified) throw new ApiError(401, "INVALID_SESSION", "Your session is invalid. Sign in again.");
+  if (Number(user.account_active) !== 1) throw new ApiError(403, "ACCOUNT_DISABLED", "This 414Unlock account is currently deactivated. Contact support.");
   return user;
 }
-function publicUser(user) { return { id: user.id, fullName: user.full_name, email: user.email, emailVerified: !!user.email_verified }; }
+function publicUser(user) { return { id: user.id, fullName: user.full_name, email: user.email, emailVerified: !!user.email_verified, active: Number(user.account_active) !== 0 }; }
 function validEmail(email) { return typeof email === "string" && email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 function htmlEscape(value) { return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function generateCode() { return String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0"); }
@@ -220,8 +224,9 @@ async function verifyEmail(request, env, headers) {
   try {
     const body = await readJson(request), email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "", code = typeof body.code === "string" ? body.code.trim() : "";
     if (!validEmail(email) || !/^\d{6}$/.test(code)) throw new ApiError(400, "INVALID_CODE", "Enter the email address and six-digit code.");
-    const user = await env.DB.prepare("SELECT id,full_name,email,email_verified FROM users WHERE email = ?").bind(email).first();
+    const user = await env.DB.prepare("SELECT id,full_name,email,email_verified,account_active FROM users WHERE email = ?").bind(email).first();
     if (!user) throw new ApiError(400, "INVALID_CODE", "The code is invalid or expired.");
+    if (Number(user.account_active) !== 1) throw new ApiError(403, "ACCOUNT_DISABLED", "This 414Unlock account is currently deactivated. Contact support.");
     if (user.email_verified) return json({ ok: true, token: await issueToken(user, env), user: publicUser(user) }, 200, headers);
     const now = Math.floor(Date.now() / 1000);
     const row = await env.DB.prepare("SELECT id,code_hash,expires_at,attempts FROM email_codes WHERE user_id = ? AND purpose = 'verify_email' ORDER BY created_at DESC LIMIT 1").bind(user.id).first();
@@ -241,10 +246,11 @@ async function login(request, env, headers) {
   try {
     const body = await readJson(request), email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "", password = typeof body.password === "string" ? body.password : "";
     if (!validEmail(email) || !password) throw new ApiError(400, "INVALID_CREDENTIALS", "Enter your email and password.");
-    const user = await env.DB.prepare("SELECT id,full_name,email,password_salt,password_hash,email_verified FROM users WHERE email = ?").bind(email).first();
+    const user = await env.DB.prepare("SELECT id,full_name,email,password_salt,password_hash,email_verified,account_active FROM users WHERE email = ?").bind(email).first();
     const passwordHash = await createPasswordHash(password, user ? user.password_salt : "00000000000000000000000000000000");
     if (!user || !constantTimeEqual(passwordHash, user.password_hash)) throw new ApiError(401, "INVALID_CREDENTIALS", "Email or password is incorrect.");
     if (!user.email_verified) throw new ApiError(403, "EMAIL_NOT_VERIFIED", "Verify your email before signing in.");
+    if (Number(user.account_active) !== 1) throw new ApiError(403, "ACCOUNT_DISABLED", "This 414Unlock account is currently deactivated. Contact support.");
     return json({ ok: true, token: await issueToken(user, env), user: publicUser(user) }, 200, headers);
   } catch (error) { throwOrReturn(error, headers); }
 }
@@ -266,8 +272,9 @@ async function redeemAppCode(request, env, headers) {
     const codeHash = await keyedHash("app:" + code, env), now = Math.floor(Date.now() / 1000);
     const used = await env.DB.prepare("UPDATE app_codes SET used_at = ? WHERE code_hash = ? AND used_at IS NULL AND expires_at > ? RETURNING user_id").bind(now, codeHash, now).first();
     if (!used) throw new ApiError(400, "INVALID_APP_CODE", "The sign-in code is invalid or expired. Start sign-in again.");
-    const user = await env.DB.prepare("SELECT id,full_name,email,email_verified FROM users WHERE id = ?").bind(used.user_id).first();
+    const user = await env.DB.prepare("SELECT id,full_name,email,email_verified,account_active FROM users WHERE id = ?").bind(used.user_id).first();
     if (!user || !user.email_verified) throw new ApiError(401, "AUTH_REQUIRED", "Sign in again to continue.");
+    if (Number(user.account_active) !== 1) throw new ApiError(403, "ACCOUNT_DISABLED", "This 414Unlock account is currently deactivated. Contact support.");
     return json({ ok: true, token: await issueToken(user, env), user: publicUser(user) }, 200, headers);
   } catch (error) { throwOrReturn(error, headers); }
 }
@@ -283,6 +290,7 @@ async function submitVerification(request, env, headers) {
   let documentKey = null;
   try {
     const user = await readToken(request, env), type = request.headers.get("Content-Type") || "";
+    if (!env.DOCUMENTS) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "Private document storage is not enabled yet. Please try again later.");
     if (!type.toLowerCase().includes("multipart/form-data")) throw new ApiError(415, "MULTIPART_REQUIRED", "Upload the application as a multipart form.");
     const form = await request.formData(), legalName = String(form.get("legalName") || "").trim(), country = String(form.get("country") || "").trim();
     const applicantType = String(form.get("applicantType") || ""), termsAccepted = String(form.get("termsAccepted") || "") === "true";
@@ -320,6 +328,7 @@ async function listSubmissions(request, env, headers) {
 async function getSubmissionDocument(request, env, headers, id) {
   try {
     await requireAdmin(request, env);
+    if (!env.DOCUMENTS) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "Private document storage is not enabled yet.");
     const row = await env.DB.prepare("SELECT document_key,document_type,status FROM verification_submissions WHERE id = ?").bind(id).first();
     if (!row || !row.document_key || row.status !== "pending") throw new ApiError(404, "DOCUMENT_NOT_AVAILABLE", "This document is not available for review.");
     const object = await env.DOCUMENTS.get(row.document_key);
@@ -334,6 +343,7 @@ async function reviewSubmission(request, env, headers, id) {
     if (!["approve", "reject"].includes(decision)) throw new ApiError(400, "INVALID_DECISION", "Choose approve or reject.");
     const row = await env.DB.prepare("SELECT id,document_key,status FROM verification_submissions WHERE id = ?").bind(id).first();
     if (!row || row.status !== "pending") throw new ApiError(404, "APPLICATION_NOT_PENDING", "This application is no longer pending.");
+    if (row.document_key && !env.DOCUMENTS) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "Private document storage is not enabled; the application was not changed.");
     const now = Math.floor(Date.now() / 1000), status = decision === "approve" ? "approved" : "rejected";
     const result = await env.DB.prepare("UPDATE verification_submissions SET status=?,review_note=?,reviewed_at=?,reviewed_by=? WHERE id=? AND status='pending'").bind(status, note, now, admin.email, id).run();
     if (!result.meta || result.meta.changes !== 1) throw new ApiError(409, "REVIEW_CONFLICT", "Another reviewer already handled this application.");
@@ -572,6 +582,45 @@ async function createServiceOrder(request, env, headers) {
     ).bind(id, user.id).first();
     return json({ ok: true, order: publicWalletOrder(order), balance: Number(wallet ? wallet.balance : 0), message: "Service request submitted. The request is queued for manual review." + (checkCredit ? " D150 IMEI-check credit was applied." : "") }, 201, headers);
   } catch (error) { throwOrReturn(error, headers); }
+}
+
+async function listAdminUsers(request, env, headers) {
+  try {
+    const admin = await requireAdmin(request, env), url = new URL(request.url);
+    const q = String(url.searchParams.get("q") || "").trim().slice(0, 80), like = "%" + q + "%";
+    const result = await env.DB.prepare(
+      `SELECT u.id,u.full_name,u.email,u.email_verified,u.account_active,u.account_status_note,u.account_status_updated_at,u.created_at,
+        (SELECT v.status FROM verification_submissions v WHERE v.user_id=u.id ORDER BY v.submitted_at DESC LIMIT 1) AS verification_status,
+        COALESCE(w.balance,0) AS wallet_balance,
+        (SELECT COUNT(*) FROM service_orders o WHERE o.user_id=u.id) AS order_count,
+        (SELECT COUNT(*) FROM topup_requests t WHERE t.user_id=u.id) AS topup_count
+       FROM users u LEFT JOIN wallets w ON w.user_id=u.id
+       WHERE (?='' OR u.email LIKE ? OR u.full_name LIKE ?)
+       ORDER BY u.created_at DESC LIMIT 100`
+    ).bind(q, like, like).all();
+    return json({ ok:true, adminEmail:admin.email, users:(result.results||[]).map((u)=>({
+      id:u.id,fullName:u.full_name,email:u.email,emailVerified:Boolean(u.email_verified),
+      accountActive:Number(u.account_active)===1,accountStatusNote:u.account_status_note||"",
+      accountStatusUpdatedAt:u.account_status_updated_at,createdAt:u.created_at,
+      verificationStatus:u.verification_status||"not_submitted",walletBalance:Number(u.wallet_balance||0),
+      orderCount:Number(u.order_count||0),topupCount:Number(u.topup_count||0)
+    })) },200,headers);
+  } catch(error){throwOrReturn(error,headers);}
+}
+async function updateAdminUserStatus(request, env, headers, id) {
+  try {
+    const admin=await requireAdmin(request,env),body=await readJson(request);
+    if(typeof body.active!=="boolean")throw new ApiError(400,"INVALID_ACCOUNT_STATUS","Choose whether the account should be active or deactivated.");
+    const target=await env.DB.prepare("SELECT id,email,account_active FROM users WHERE id=?").bind(id).first();
+    if(!target)throw new ApiError(404,"USER_NOT_FOUND","That user account could not be found.");
+    const adminEmails=(env.ADMIN_EMAILS||"").split(",").map((x)=>x.trim().toLowerCase()).filter(Boolean);
+    if(!body.active&&adminEmails.includes(String(target.email).toLowerCase()))throw new ApiError(403,"ADMIN_ACCOUNT_PROTECTED","An administrator account cannot be deactivated from user management.");
+    const note=typeof body.note==="string"?body.note.trim().slice(0,500):"",now=Math.floor(Date.now()/1000);
+    const result=await env.DB.prepare("UPDATE users SET account_active=?,account_status_note=?,account_status_updated_at=?,account_status_updated_by=? WHERE id=?").bind(body.active?1:0,note,now,admin.email,id).run();
+    if(!result.meta||result.meta.changes!==1)throw new ApiError(409,"ACCOUNT_STATUS_CONFLICT","The account status could not be changed. Refresh and try again.");
+    await env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) VALUES (?,?,?,?,?,?)").bind(randomHex(16),admin.email,body.active?"user_activated":"user_deactivated",id,note,now).run();
+    return json({ok:true,user:{id:target.id,email:target.email,active:body.active},message:body.active?"User account activated.":"User account deactivated. Existing sessions are now blocked."},200,headers);
+  } catch(error){throwOrReturn(error,headers);}
 }
 
 async function adminQueue(request, env, headers) {

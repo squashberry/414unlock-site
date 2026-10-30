@@ -10,7 +10,7 @@ class WalletMigrationTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
         self.db.execute("PRAGMA foreign_keys = ON")
-        for migration in ("0001_init.sql", "0002_payments.sql", "0003_wallet_orders.sql"):
+        for migration in ("0001_init.sql", "0002_payments.sql", "0003_wallet_orders.sql", "0004_ios_support_rules.sql", "0005_user_account_controls.sql"):
             self.db.executescript((MIGRATIONS / migration).read_text(encoding="utf-8"))
         self.db.execute(
             "INSERT INTO users (id, full_name, email, password_salt, password_hash, email_verified, created_at) VALUES (?,?,?,?,?,?,?)",
@@ -52,6 +52,24 @@ class WalletMigrationTests(unittest.TestCase):
         )
         self.db.commit()
 
+
+    def test_new_accounts_are_active_and_admin_can_deactivate_without_deleting_data(self):
+        row = self.db.execute(
+            "SELECT account_active, account_status_note FROM users WHERE id='user-1'"
+        ).fetchone()
+        self.assertEqual(row, (1, ""))
+
+        self.db.execute(
+            "UPDATE users SET account_active=0, account_status_note='Manual admin review', "
+            "account_status_updated_at=2000, account_status_updated_by='admin@example.test' WHERE id='user-1'"
+        )
+        self.db.commit()
+
+        row = self.db.execute(
+            "SELECT account_active, account_status_note, account_status_updated_by FROM users WHERE id='user-1'"
+        ).fetchone()
+        self.assertEqual(row, (0, "Manual admin review", "admin@example.test"))
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM users WHERE id='user-1'").fetchone()[0], 1)
     def test_topup_credits_wallet_once_after_pending_payment_is_approved(self):
         self.db.execute(
             """INSERT INTO topup_requests
