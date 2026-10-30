@@ -33,7 +33,7 @@ h1{font-size:clamp(34px,4.4vw,48px);font-weight:800}
 .field{margin:0 0 16px}
 label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
 input{width:100%;min-height:50px;border:1.5px solid var(--line);border-radius:10px;padding:10px 14px;font:inherit;font-size:16px;color:var(--ink);background:#fff}
-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 4px #0b1f8f1f}
+input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 4px #0b1f8f1f}.saved-email-clear{display:block;margin-top:7px;padding:0;border:0;background:none;color:var(--blue);font:600 13px var(--body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}.saved-email-clear[hidden]{display:none}
 small{display:block;font-size:13px;color:var(--mute);margin-top:6px}
 .message{display:none;padding:12px 14px;border-radius:10px;font-size:14.5px;margin:4px 0 16px}
 .message.show{display:block}
@@ -64,9 +64,10 @@ small{display:block;font-size:13px;color:var(--mute);margin-top:6px}
 <h1 id="heading">Welcome back.</h1>
 <p class="form-intro" id="intro">Sign in to confirm your account access. When you sign in from the desktop app, you will return to 414Unlock automatically.</p>
 <div class="form-tabs"><button id="tab-signin" class="active" type="button">Sign in</button><button id="tab-signup" type="button">Create account</button></div>
-<form id="auth-form">
+<form id="auth-form" name="unlock414AuthForm" autocomplete="on">
 <div id="name-wrap" class="field hidden"><label for="fullName">Full name</label><input id="fullName" name="fullName" autocomplete="name" maxlength="120" placeholder="Your full legal name"></div>
-<div class="field"><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"></div>
+<div class="field"><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" required maxlength="254" placeholder="you@example.com">
+<small id="email-hint">Your last-used email can be remembered on this device. 414Unlock never saves your password.</small><button id="clear-saved-email" class="saved-email-clear" type="button" hidden>Forget saved email on this device</button></div>
 <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required minlength="10" maxlength="128" placeholder="At least 10 characters"><small id="password-hint">Use the password you created for your account.</small><a class="forgot" href="forgot.html">Forgot your password?</a></div>
 <div id="message" class="message" role="status" aria-live="polite"></div>
 <button id="submit-button" class="btn" type="submit">Sign in <span>→</span></button>
