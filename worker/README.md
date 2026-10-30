@@ -7,7 +7,7 @@ This is the server-side API for the 414Unlock website. It is separate from GitHu
 1. Create a Cloudflare D1 database named `414unlock-auth`.
 2. Create a private R2 bucket named `414unlock-private-documents`.
 3. Put the real D1 database ID into `wrangler.toml`.
-4. Apply migrations in order: `0001_init.sql`, `0002_payments.sql`, and `0003_wallet_orders.sql`. Example: `wrangler d1 migrations apply 414unlock-auth --remote`.
+4. Apply migrations in order: `0001_init.sql`, `0002_payments.sql`, `0003_wallet_orders.sql`, and `0004_ios_support_rules.sql`. Example: `wrangler d1 migrations apply 414unlock-auth --remote`.
 5. Set secrets with `wrangler secret put JWT_SECRET`, `RESEND_API_KEY`, `FROM_EMAIL`, `ADMIN_EMAILS`, and `DEVICE_DATA_ENCRYPTION_KEY`.
 6. Make sure `FROM_EMAIL` is a sender verified with Resend. Use your own secure random values for the secrets; never commit them to GitHub.
 7. Deploy with `wrangler deploy`.
@@ -37,6 +37,17 @@ Model pricing on the server reflects the published 414Unlock list (whole GMD): D
 - `POST /api/payments/verify-code` — delegates code verification to the configured server-side SquashberryPay adapter.
 - `GET /api/payments/status?sessionId=...` — desktop app re-checks server-side payment state.
 - `POST /api/payments/validate-device` — desktop app confirms that the paid session matches its currently detected device.
+- `GET /api/payments/check-device?identifier=...&identifierKind=serial|imei|udid` — authenticated lookup for an existing verified payment session belonging to the signed-in user and the same device fingerprint. Returns `paid`, `deviceRegistered`, `canRetry`, `status`, and a user-facing `message`. It never returns the raw identifier or another customer's payment details. A verified matching session allows retry without creating another checkout; a session owned by another account does not.
+
+## Server-controlled iOS compatibility policy
+
+- `GET /api/compatibility/ios?iosVersion=18.7` — public, read-only compatibility decision used by the desktop app before the unlock workflow. The response includes `allowed`/`supported`, `matched`, a safe rule summary, a stable `code`, and a message. The internal administrator note is not exposed.
+- `GET /api/admin/ios-support/rules` — administrator-only list of exact-version and inclusive version-range rules.
+- `POST /api/admin/ios-support/rules` — administrator-only create/update endpoint. JSON fields: `id` (omit for a new rule), `matchType` (`exact` or `range`), `version` for exact rules or `minVersion`/`maxVersion` for ranges, `enabled` (boolean), and optional `note`. Disable a rule to block its version/range. Rules can be edited and toggled from the **iOS support** tab of `admin.html`.
+
+Policy evaluation is numeric semantic version comparison, not a text prefix. Exact-version rules override ranges. When more than one range matches, the narrowest range is used; a disabled range wins a tie. Versions must be numeric dotted versions with two to four components. If no rule matches, the API returns `allowed:false` and “This phone's iOS version isn't supported.” There are deliberately no seeded allow rules: after migration, administrators must add and explicitly enable versions/ranges after confirming service compatibility. An API/network/database error must also stop the desktop workflow; the client must not fall back to a local allow list. Model/chipset eligibility remains a separate check and must not be inferred from an iOS version rule.
+
+The public policy endpoint does not authenticate because device compatibility may be checked before the customer signs in. It exposes only the decision and non-sensitive match metadata. Rule creation and modification are protected by the existing `ADMIN_EMAILS` allowlist.
 
 ### SquashberryPay adapter contract — must be confirmed before production
 
@@ -58,6 +69,8 @@ Documents are uploaded to private R2, never published as public URLs, and are de
 ## Before production
 
 - Provision real Cloudflare resources and run all migrations; do not leave placeholder IDs or secrets.
+- In the admin **iOS support** tab, add and explicitly enable only the exact iOS versions/ranges you have verified. Test an enabled range, an explicitly disabled exact version inside that range, an unlisted version, and API failure. Confirm exact rules override ranges and the app fails closed when the policy request fails.
+- Test `GET /api/payments/check-device` with a verified payment on the same account/device, a pending or expired session, a different account, and a mismatched identifier; only a verified same-account match should return `paid:true`/`canRetry:true`.
 - Configure rate limiting/WAF for authentication, top-up and upload endpoints.
 - Verify the SquashberryPay payment process end-to-end; manual review must not be advertised as automated.
 - Review data-protection requirements; publish support contacts, controller/processor details, retention and deletion periods.
