@@ -71,7 +71,7 @@ jobs:
           required = {
               "users", "verification_submissions", "payment_sessions",
               "wallets", "wallet_transactions", "topup_requests",
-              "service_orders", "ios_support_rules", "auth_browser_challenges", "auth_security_events"
+              "service_orders", "imei_lookup_requests", "ios_support_rules", "auth_browser_challenges", "auth_security_events"
           }
           present = {row[0] for row in db.execute(
               "SELECT name FROM sqlite_master WHERE type='table'"
