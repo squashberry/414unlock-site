@@ -5,7 +5,7 @@ workers_dev = true
 
 [vars]
 SITE_ORIGIN = "https://squashberry.github.io"
-TERMS_VERSION = "2026-10-21"
+TERMS_VERSION = "2026-10-30"
 
 [[d1_databases]]
 binding = "DB"
@@ -18,8 +18,6 @@ migrations_dir = "migrations"
 # CLOUDINARY_API_KEY        - Cloudinary API key
 # CLOUDINARY_API_SECRET    - Cloudinary API secret; server-side only
 # JWT_SECRET                 - at least 32 random bytes
-# RESEND_API_KEY             - transactional email API key
-# FROM_EMAIL                 - verified sender identity in your email provider
 # ADMIN_EMAILS               - comma-separated review-admin email addresses
 # DEVICE_DATA_ENCRYPTION_KEY - long random secret (32+ chars) used for AES-GCM device identifier encryption
 # Payment verification integration; set only after confirming SquashberryPay's actual API contract:
