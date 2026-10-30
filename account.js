@@ -50,7 +50,7 @@
     passwordInput.autocomplete=mode==="signin"?"current-password":"new-password";
     passwordHint.textContent=mode==="signin"?"Use your account password.":"Use at least 10 characters. Never reuse a password from another service.";
     message.className="message";hideBrowserState();
-    var returnQuery=returnToApp?"&return=app&state="+encodeURIComponent(appState)+(appCallback?"&callback="+encodeURIComponent(appCallback):""):(returnTarget==="payment"&&paymentLaunch?"&return=payment&launch="+encodeURIComponent(paymentLaunch)+(appState?"&state="+encodeURIComponent(appState):"")+(appCallback?"&callback="+encodeURIComponent(appCallback):""):(returnTarget==="admin"||returnTarget==="review"||returnTarget==="imei"?"&return="+returnTarget:""));
+    var returnQuery=returnToApp?"&return=app&state="+encodeURIComponent(appState)+(appCallback?"&callback="+encodeURIComponent(appCallback):""):(returnTarget==="payment"&&paymentLaunch?"&return=payment&launch="+encodeURIComponent(paymentLaunch)+(appState?"&state="+encodeURIComponent(appState):"")+(appCallback?"&callback="+encodeURIComponent(appCallback):""):(returnTarget==="admin"||returnTarget==="review"||returnTarget==="imei"||returnTarget==="mobile"?"&return="+returnTarget:""));
     history.replaceState(null,"","account.html?flow="+mode+returnQuery);
   }
   tabs[0].addEventListener("click",function(){changeMode("signin");});
@@ -66,7 +66,7 @@
     if(flow==="signup"){
       var verificationUrl="verify.html?source=signup";
       if(returnToApp)verificationUrl+="&return=app&state="+encodeURIComponent(appState)+(appCallback?"&callback="+encodeURIComponent(appCallback):"");
-      else verificationUrl+="&return="+(returnTarget==="imei"?"imei":"dashboard");
+      else verificationUrl+="&return="+(returnTarget==="imei"?"imei":returnTarget==="mobile"?"mobile":"dashboard");
       location.href=verificationUrl;return;
     }
     if(returnToApp){
@@ -77,6 +77,7 @@
     }
     if(returnTarget==="admin"){location.href="admin.html";return;}
     if(returnTarget==="review"){location.href="review.html";return;}
+    if(returnTarget==="mobile"){location.href="mobile.html";return;}
     if(returnTarget==="payment"&&paymentLaunch){location.href="payment.html?launch="+encodeURIComponent(paymentLaunch)+(appState?"&state="+encodeURIComponent(appState):"");return;}
     if(returnTarget==="imei"){location.href="dashboard.html#new-order";return;}
     location.href="dashboard.html";
