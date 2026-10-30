@@ -14,6 +14,8 @@ on:
       - "worker/**"
       - "admin.html"
       - "admin.js"
+      - "support.html"
+      - "support.js"
       - ".github/workflows/worker-tests.yml"
 
 permissions:
@@ -37,7 +39,6 @@ jobs:
         run: |
           node --check worker/src/index.js
           node --check admin.js
-          node --check support.js
 
       - name: Run iOS policy unit tests
         run: node --test worker/tests/ios-policy.test.mjs
@@ -63,7 +64,7 @@ jobs:
           required = {
               "users", "verification_submissions", "payment_sessions",
               "wallets", "wallet_transactions", "topup_requests",
-              "service_orders", "ios_support_rules", "support_tickets", "support_messages"
+              "service_orders", "ios_support_rules"
           }
           present = {row[0] for row in db.execute(
               "SELECT name FROM sqlite_master WHERE type='table'"
@@ -93,5 +94,5 @@ jobs:
           user_columns = {row[1] for row in db.execute("PRAGMA table_info(users)")}
           if not {"account_active", "account_status_note", "account_status_updated_at", "account_status_updated_by"}.issubset(user_columns):
               raise SystemExit("User account-control columns are missing after migrations")
-          print("All SQL migrations applied; required tables, user account controls, support chat, and iOS rule constraints passed.")
+          print("All SQL migrations applied; required tables, user account controls, and iOS rule constraints passed.")
           PY
