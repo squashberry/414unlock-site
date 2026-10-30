@@ -30,7 +30,7 @@ The `DEVICE_DATA_ENCRYPTION_KEY` must be a high-entropy random secret of at leas
 
 The account verification workflow gates top-ups and service requests. Customers must assert that they own the device or have permission from its owner. Full serial/IMEI values are encrypted in D1 using `DEVICE_DATA_ENCRYPTION_KEY`; customer responses show only the masked suffix. Only `ADMIN_EMAILS` can use the admin queue. Do not expose raw identifiers in URLs or logs.
 
-Model pricing on the server reflects the published 414Unlock list (whole GMD): D1,400; D1,600; D1,900; D2,200; D2,500; D3,000; D3,500; D5,000; and D6,500 by model band. IMEI checks are D150; fast service adds D1,000. An eligible completed IMEI check may be applied once against the same device's unlock request if used within seven days.
+Model pricing on the server reflects the published 414Unlock iPhone price bands (whole GMD): D1,550 through iPhone X; D1,550 for XR / XS / XS Max and SE (2nd/3rd gen); D2,050 for iPhone 11/12; D2,550 for iPhone 13/14; D3,050 for iPhone 15; and D3,550 for iPhone 16. The public services page also documents vendor-advertised iPhone/iPad compatibility; iPad orders remain quote-only until an iPad price and order flow are published. IMEI checks are D150; fast service adds D1,000. An eligible completed IMEI check may be applied once against the same device's unlock request if used within seven days.
 
 ## Existing desktop payment session API
 
