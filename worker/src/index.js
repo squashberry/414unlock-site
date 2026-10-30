@@ -1158,8 +1158,8 @@ async function checkImeiLookup(request, env, headers) {
     const completedAt = Math.floor(Date.now() / 1000);
     const finalised = await env.DB.batch([
       env.DB.prepare(
-        "UPDATE service_orders SET device_model=?,status='completed',provider_reference=?,processed_at=?,completed_at=?,updated_at=? WHERE id=? AND user_id=? AND status='submitted'"
-      ).bind(deviceModel, "HiCellTek TAC " + tac, completedAt, completedAt, completedAt, requestId, user.id),
+        "UPDATE service_orders SET device_model=?,status='completed',provider_reference=?,processed_at=?,completed_at=?,updated_at=? WHERE id=? AND user_id=? AND status='submitted' AND EXISTS (SELECT 1 FROM imei_lookup_requests WHERE request_id=? AND user_id=? AND status='processing')"
+      ).bind(deviceModel, "HiCellTek TAC " + tac, completedAt, completedAt, completedAt, requestId, user.id, requestId, user.id),
       env.DB.prepare(
         "UPDATE imei_lookup_requests SET status='completed',result_json=?,error_code=NULL,error_message=NULL,updated_at=?,expires_at=? WHERE request_id=? AND user_id=? AND status='processing'"
       ).bind(JSON.stringify(result), completedAt, completedAt + 300, requestId, user.id)
