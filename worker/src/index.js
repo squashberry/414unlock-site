@@ -433,26 +433,42 @@ async function verificationStatus(request, env, headers) {
 }
 function cloudinaryConfigured(env) { return Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET); }
 async function sha1Hex(value) { return bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-1", encoder.encode(value)))); }
-async function cloudinaryApiSignature(params, secret) {
-  const canonical = Object.keys(params).sort().map((key) => key + "=" + params[key]).join("&");
-  return sha1Hex(canonical + secret);
-}
 function cloudinaryApiBase(env) {
   if (!cloudinaryConfigured(env)) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "Private document storage is not configured yet.");
   return "https://api.cloudinary.com/v1_1/" + encodeURIComponent(env.CLOUDINARY_CLOUD_NAME);
 }
+function cloudinaryAuthorization(env) {
+  return "Basic " + btoa(env.CLOUDINARY_API_KEY + ":" + env.CLOUDINARY_API_SECRET);
+}
+function cloudinaryUploadFailureReason(status, data) {
+  const message = String(data && data.error && data.error.message || "").toLowerCase();
+  if (Number(status) === 401 || /invalid api key|invalid credentials|authentication failed|unauthorized/.test(message)) return "cloudinary_auth_rejected";
+  if (/invalid signature/.test(message)) return "cloudinary_signature_rejected";
+  if (/file size|too large|maximum.*size/.test(message)) return "cloudinary_file_too_large";
+  if (/not allowed|not permitted|access mode|authenticated/.test(message)) return "cloudinary_policy_rejected";
+  if (!status && (!data || !data.public_id)) return "cloudinary_bad_response";
+  return "cloudinary_http_" + String(Number(status) || 0);
+}
 async function uploadCloudinaryDocument(file, documentId, env) {
-  const timestamp = Math.floor(Date.now() / 1000), publicId = "414unlock/verification/" + documentId;
-  const params = { public_id: publicId, timestamp: String(timestamp), type: "authenticated" };
-  const signature = await cloudinaryApiSignature(params, env.CLOUDINARY_API_SECRET), body = new FormData();
-  body.append("file", file, "identity-document"); body.append("public_id", publicId);
-  body.append("timestamp", String(timestamp)); body.append("type", "authenticated");
-  body.append("api_key", env.CLOUDINARY_API_KEY); body.append("signature", signature);
-  const response = await fetch(cloudinaryApiBase(env) + "/raw/upload", { method: "POST", body });
+  // Use Cloudinary's documented server-side HTTP Basic Auth flow; never expose credentials to the browser.
+  // Dynamic-folder accounts require asset_folder to select the storage folder independently of public_id.
+  const publicId = documentId, extension = String(documentId).split(".").pop() || "bin", body = new FormData();
+  body.append("file", file, "identity-document." + extension);
+  body.append("public_id", publicId);
+  body.append("asset_folder", "414unlock/verification");
+  body.append("type", "authenticated");
+  const response = await fetch(cloudinaryApiBase(env) + "/raw/upload", {
+    method: "POST",
+    headers: { Authorization: cloudinaryAuthorization(env) },
+    body
+  });
   let data = {}; try { data = await response.json(); } catch (_) {}
   if (!response.ok || !data.public_id || !data.version) {
-    console.error("Cloudinary upload failed:", Number(response.status));
-    throw new ApiError(502, "PRIVATE_STORAGE_UPLOAD_FAILED", "Your document could not be stored securely. Please try again later.");
+    const diagnosticReason = cloudinaryUploadFailureReason(response.status, data);
+    console.error("Cloudinary upload failed:", diagnosticReason);
+    const error = new ApiError(502, "PRIVATE_STORAGE_UPLOAD_FAILED", "Your document could not be stored securely. Please try again later.");
+    error.diagnosticReason = diagnosticReason;
+    throw error;
   }
   return "cloudinary:" + data.public_id + "|" + String(data.version);
 }
@@ -472,12 +488,15 @@ async function deleteCloudinaryDocument(documentKey, env) {
   if (!documentKey) return;
   const asset = parseCloudinaryDocumentKey(documentKey);
   if (!asset) throw new ApiError(409, "DOCUMENT_REFERENCE_INVALID", "The stored document reference is invalid; the review was not completed.");
-  const timestamp = Math.floor(Date.now() / 1000);
-  const params = { invalidate: "true", public_id: asset.publicId, timestamp: String(timestamp), type: "authenticated" };
-  const signature = await cloudinaryApiSignature(params, env.CLOUDINARY_API_SECRET), body = new FormData();
-  body.append("public_id", asset.publicId); body.append("timestamp", String(timestamp)); body.append("type", "authenticated");
-  body.append("invalidate", "true"); body.append("api_key", env.CLOUDINARY_API_KEY); body.append("signature", signature);
-  const response = await fetch(cloudinaryApiBase(env) + "/raw/destroy", { method: "POST", body });
+  const body = new FormData();
+  body.append("public_id", asset.publicId);
+  body.append("type", "authenticated");
+  body.append("invalidate", "true");
+  const response = await fetch(cloudinaryApiBase(env) + "/raw/destroy", {
+    method: "POST",
+    headers: { Authorization: cloudinaryAuthorization(env) },
+    body
+  });
   let data = {}; try { data = await response.json(); } catch (_) {}
   if (!response.ok || (data.result && !["ok", "not found"].includes(String(data.result).toLowerCase()))) {
     console.error("Cloudinary delete failed:", Number(response.status));
@@ -486,9 +505,11 @@ async function deleteCloudinaryDocument(documentKey, env) {
 }
 
 async function submitVerification(request, env, headers) {
-  let documentKey = null;
+  let documentKey = null, identity = null, userEmail = "";
   try {
     const user = await readToken(request, env), type = request.headers.get("Content-Type") || "";
+    identity = await requestIdentity(request, env);
+    userEmail = user.email;
     if (!cloudinaryConfigured(env)) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "Private document storage is not configured yet.");
     if (!type.toLowerCase().includes("multipart/form-data")) throw new ApiError(415, "MULTIPART_REQUIRED", "Upload the application as a multipart form.");
     const form = await request.formData(), legalName = String(form.get("legalName") || "").trim(), country = String(form.get("country") || "").trim();
@@ -507,6 +528,9 @@ async function submitVerification(request, env, headers) {
       .bind(id, user.id, legalName, country, applicantType, documentKey, originalName, file.type, termsVersion, now, now).run();
     return json({ ok: true, status: "pending", submissionId: id, message: "Your application has been submitted for review." }, 201, headers);
   } catch (error) {
+    if (identity && error && error.code === "PRIVATE_STORAGE_UPLOAD_FAILED") {
+      try { await recordSecurityEvent(env, identity, "document_storage_upload_failed", "blocked", error.diagnosticReason || "cloudinary_upload_failed", userEmail); } catch (_) {}
+    }
     if (documentKey) { try { await deleteCloudinaryDocument(documentKey, env); } catch (_) {} }
     throwOrReturn(error, headers);
   }
