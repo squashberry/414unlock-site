@@ -55,6 +55,12 @@
   }
   async function routeAuthenticated(token,flow){
     sessionStorage.setItem("414unlock_token",token);sessionStorage.setItem("414unlock_flow",flow);
+    if(flow==="signup"){
+      var verificationUrl="verify.html?source=signup";
+      if(returnToApp)verificationUrl+="&return=app&state="+encodeURIComponent(appState)+(appCallback?"&callback="+encodeURIComponent(appCallback):"");
+      else verificationUrl+="&return=dashboard";
+      location.href=verificationUrl;return;
+    }
     if(returnToApp){
       if(!appState){showMessage("The desktop sign-in request is missing its security state. Start sign-in again from 414Unlock.","error");return;}
       var appCode=await request("/api/auth/app-code",{method:"POST",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},body:"{}"});
@@ -64,7 +70,6 @@
     if(returnTarget==="admin"){location.href="admin.html";return;}
     if(returnTarget==="review"){location.href="review.html";return;}
     if(returnTarget==="payment"&&paymentLaunch){location.href="payment.html?launch="+encodeURIComponent(paymentLaunch)+(appState?"&state="+encodeURIComponent(appState):"");return;}
-    if(flow==="signup"){location.href="verify.html?source=signup&return=dashboard";return;}
     location.href="dashboard.html";
   }
   form.addEventListener("submit",async function(event){
