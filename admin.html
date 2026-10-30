@@ -17,7 +17,7 @@
 </div></header>
 <main><div class="wrap">
 <div id="admin-banner" class="portal-banner" role="status" aria-live="polite" hidden></div>
-<div class="admin-tabs" role="tablist"><button type="button" id="tab-orders" class="active" role="tab" aria-selected="true">Service requests</button><button type="button" id="tab-topups" role="tab" aria-selected="false">Top-up review</button><button type="button" id="tab-users" role="tab" aria-selected="false">Users</button><button type="button" id="tab-support" role="tab" aria-selected="false">Support inbox</button><button type="button" id="tab-ios" role="tab" aria-selected="false">iOS support</button><button type="button" id="tab-security" role="tab" aria-selected="false">Security activity</button></div>
+<div class="admin-tabs" role="tablist"><button type="button" id="tab-orders" class="active" role="tab" aria-selected="true">Service requests</button><button type="button" id="tab-topups" role="tab" aria-selected="false">Top-up review</button><button type="button" id="tab-users" role="tab" aria-selected="false">Users</button><button type="button" id="tab-support" role="tab" aria-selected="false">Support inbox</button><button type="button" id="tab-ios" role="tab" aria-selected="false">iOS support</button><button type="button" id="tab-security" role="tab" aria-selected="false">Security activity</button><button type="button" id="tab-site" role="tab" aria-selected="false">Website controls</button></div>
 <section id="orders-section"><div class="qhead"><h2>Device service requests</h2><p>Use the verified details to manually register the order with your service provider, then update its progress here. Do not start a service unless device authorisation has been checked.</p></div><div id="admin-orders" class="admin-card-list"><div class="empty-records">Connect the secure API to load requests.</div></div></section>
 <section id="topups-section" hidden><div class="qhead"><h2>SquashberryPay top-up verification</h2><p>Check each transaction inside SquashberryPay before approving. The submitted reference alone is not proof of payment. Approving a request credits the user’s wallet once.</p></div><div id="admin-topups" class="admin-card-list"><div class="empty-records">Connect the secure API to load requests.</div></div></section>
 <section id="users-section" hidden>
@@ -73,6 +73,27 @@
   <div class="ios-rule-actions" style="margin:12px 0 18px"><button type="button" id="security-refresh" class="portal-button portal-button-outline">Refresh security activity</button></div>
   <div id="security-status" class="ios-support-status" role="status" aria-live="polite">Loading recent security activity…</div>
   <div id="admin-security-events" class="admin-card-list"><div class="empty-records">Connect the secure API to load security activity.</div></div>
+ </section>
+  <section id="site-section" hidden>
+  <div class="qhead"><h2>Website controls</h2><p>Manage service availability, maintenance messaging, regional access and individual site features. Changes are enforced by the private API.</p></div>
+  <div id="site-controls-status" class="ios-support-status" role="status" aria-live="polite">Loading website settings…</div>
+  <div class="ios-rule-editor">
+   <h3>Service mode</h3><p class="admin-note">Pause public access and show a return countdown. The admin workspace remains accessible.</p>
+   <label class="field"><span><input type="checkbox" id="site-service-mode"> Enable service mode / lock public website</span></label>
+   <div class="field"><label for="site-service-message">Maintenance message</label><textarea id="site-service-message" rows="3" maxlength="500">We're carrying out scheduled maintenance. Please check back shortly.</textarea></div>
+   <div class="field"><label for="site-return-at">Expected return date and time (your local time)</label><input type="datetime-local" id="site-return-at"></div>
+   <h3 style="margin-top:26px">Access and account switches</h3>
+   <div class="ios-rule-form">
+    <label class="field"><span><input type="checkbox" id="site-geo"> Enable regional access restriction</span></label>
+    <label class="field"><span><input type="checkbox" id="site-signup"> Allow new registrations</span></label>
+    <label class="field"><span><input type="checkbox" id="site-login"> Allow member sign-in</span></label>
+    <label class="field"><span><input type="checkbox" id="site-browser"> Require Squashberry browser verification</span></label>
+    <label class="field"><span><input type="checkbox" id="site-payments"> Enable payments and wallet top-ups</span></label>
+    <label class="field"><span><input type="checkbox" id="site-orders"> Accept new service orders</span></label>
+    <label class="field"><span><input type="checkbox" id="site-support"> Enable customer support inbox</span></label>
+   </div>
+   <div class="ios-rule-actions"><button type="button" id="site-controls-save" class="portal-button portal-button-dark portal-submit">Save website controls</button><button type="button" id="site-controls-refresh" class="portal-button portal-button-outline">Reload current settings</button></div>
+  </div>
  </section>
  <section id="ios-support-section" hidden>
   <div class="qhead"><h2>iOS compatibility policy</h2><p>Control which iOS versions the desktop engine may proceed with. The app must check this live policy before starting an unlock workflow. If no rule matches, or the API is unavailable, the app must stop and say “This phone's iOS version isn't supported.”</p></div>
