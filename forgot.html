@@ -14,21 +14,14 @@
 </div></header>
 <main><div class="wrap narrow">
 <section class="sheet">
-<div id="req-view"><form id="req-form"><div class="field"><label for="email">Email address</label><input id="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com"></div><button id="req-btn" class="btn btn-b full" type="submit">Send reset link</button></form></div>
-<div id="set-view" class="hidden"><form id="set-form"><div class="field"><label for="pw1">New password</label><input id="pw1" type="password" required minlength="10" maxlength="128" autocomplete="new-password" placeholder="At least 10 characters"><small>Use at least 10 characters. Never reuse a password from another service.</small></div><div class="field"><label for="pw2">Repeat new password</label><input id="pw2" type="password" required minlength="10" maxlength="128" autocomplete="new-password"></div><button id="set-btn" class="btn btn-b full" type="submit">Save new password</button></form></div>
-<div id="msg" class="message" role="status" aria-live="polite"></div>
-<div id="api-notice" class="notice-card hidden">Secure account services are not connected yet, so no reset link can be sent.</div>
+<h2>Need help accessing your account?</h2>
+<p class="lead">For your protection, password changes are handled by the 414Unlock support team. Contact us from the email address registered to your account and include your full name and a short description of the issue.</p>
+<p style="margin:24px 0"><a class="btn btn-b full" href="mailto:414unlock@gmail.com?subject=414Unlock%20Account%20Recovery">Contact 414Unlock support</a></p>
+<p class="legal">Never send your current password, sign-in token or browser verification details. After your identity is confirmed, support can guide you through account recovery.</p>
 </section><p class="legal"><a href="account.html?flow=signin">Back to sign in</a></p>
 </div></main>
 
 <footer><div class="wrap foot"><a class="brand" href="index.html"><span class="mark">414</span><span>Unlock</span></a><div class="links"><a href="services.html">Prices</a><a href="guide.html">Service guide</a><a href="contact.html">Support</a><a href="used-iphone.html">Used iPhone guide</a><a href="shops.html">Repair shops</a><a href="policy.html">Ownership policy</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="account.html?flow=signin">Account</a></div><span>© 414Unlock · The Gambia</span></div><div class="stripe" style="margin-top:28px" aria-hidden="true"></div></footer>
-<script>(function(){var cfg=window.UNLOCK414_CONFIG||{},api=(cfg.API_BASE_URL||"").replace(/\/+$/,""),tok=new URLSearchParams(location.search).get("token")||"",$=function(i){return document.getElementById(i)};
-function ok(){return api&&!api.includes("YOUR_")&&!api.includes("example.workers.dev")}
-function say(t,k){var m=$("msg");m.textContent=t;m.className="message show "+k}
-async function post(p,b){var r=await fetch(api+p,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}),d={};try{d=await r.json()}catch(_){}if(!r.ok)throw new Error(d.message||d.error||"Request failed ("+r.status+")");return d}
-if(tok){$("req-view").classList.add("hidden");$("set-view").classList.remove("hidden")}
-if(!ok())$("api-notice").classList.remove("hidden");
-$("req-form").addEventListener("submit",async function(e){e.preventDefault();if(!ok())return say("The secure account service is not connected yet, so no reset link can be sent.","error");var b=$("req-btn");b.disabled=true;try{await post("/api/auth/forgot-password",{email:$("email").value.trim().toLowerCase()});say("If an account exists for that email, a reset link is on its way. Check your inbox and spam folder.","success")}catch(x){say(x.message,"error")}finally{b.disabled=false}});
-$("set-form").addEventListener("submit",async function(e){e.preventDefault();var a=$("pw1").value;if(a.length<10)return say("Use a password with at least 10 characters.","error");if(a!==$("pw2").value)return say("The two passwords do not match.","error");if(!ok())return say("The secure account service is not connected yet.","error");var b=$("set-btn");b.disabled=true;try{await post("/api/auth/reset-password",{token:tok,password:a});$("set-view").classList.add("hidden");say("Your password has been changed. You can now sign in.","success")}catch(x){say(x.message,"error")}finally{b.disabled=false}});})();</script>
+
 </body>
 </html>
