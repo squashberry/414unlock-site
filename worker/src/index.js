@@ -281,9 +281,21 @@ async function enforceLoginRateLimit(env,identity,email) {
   return Number(ipFailures&&ipFailures.count||0)>=40||Number(emailFailures&&emailFailures.count||0)>=8;
 }
 async function createPasswordHash(password, saltHex) {
-  const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+  // Cloudflare Workers expects an algorithm object for PBKDF2 key import.
+  // Keep the existing iteration count and SHA-256 output so hashes remain compatible.
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"]
+  );
   const salt = Uint8Array.from(saltHex.match(/.{2}/g).map((x) => parseInt(x, 16)));
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: PASSWORD_ITERATIONS, hash: "SHA-256" }, key, 256);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations: PASSWORD_ITERATIONS, hash: "SHA-256" },
+    key,
+    256
+  );
   return bytesToHex(new Uint8Array(bits));
 }
 function constantTimeEqual(a, b) {
