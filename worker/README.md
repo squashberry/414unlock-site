@@ -8,9 +8,11 @@ This is the server-side API for the 414Unlock website. It is separate from GitHu
 2. Configure Cloudinary secrets: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`. Identity documents are uploaded as authenticated raw assets; no public delivery URL is stored.
 3. Put the real D1 database ID into `wrangler.toml`.
 4. Apply migrations in order: `0001_init.sql`, `0002_payments.sql`, `0003_wallet_orders.sql`, and `0004_ios_support_rules.sql`, then `0005_user_account_controls.sql` and `0006_support_chat.sql`. Example: `wrangler d1 migrations apply 414unlock-auth --remote`.
-5. Set secrets with `wrangler secret put JWT_SECRET`, `ADMIN_EMAILS`, and `DEVICE_DATA_ENCRYPTION_KEY`.
-6. Use unique random values for secrets; never commit them to GitHub. Authentication does not need an email-delivery provider.
-7. Deploy with `wrangler deploy`.
+5. Set secrets with `wrangler secret put JWT_SECRET`, `ADMIN_EMAILS`, `DEVICE_DATA_ENCRYPTION_KEY`, and `HICELLTEK_API_KEY`.
+6. Keep the HiCellTek API key server-side only; never place it in `site-config.js`, page HTML or browser JavaScript. IMEI lookup calls send only the first eight digits (TAC) to `https://imei.hicelltek.com/api/v1/tac/lookup`.
+7. Apply migrations in order through `0010_imei_lookup_requests.sql`.
+8. Use unique random values for secrets; never commit them to GitHub. Authentication does not need an email-delivery provider.
+9. Deploy with `wrangler deploy`.
 8. Set `API_BASE_URL` in the public `site-config.js` to the resulting Worker URL.
 9. Configure `SQUASHBERRYPAY_TOPUP_URL` only after verifying the real checkout URL, amount format and reference handling. This browser value must not contain any secret.
 
@@ -25,12 +27,13 @@ The `DEVICE_DATA_ENCRYPTION_KEY` must be a high-entropy random secret of at leas
 - `GET /api/admin/users?q=...` — admin-only user directory with account state, latest identity-review state, wallet balance, service/top-up counts, and account status. Search matches name or email.
 - `POST /api/admin/users/:id/status` — admin-only account activation control. Send `{"active":false,"note":"..."}` to deactivate or `{"active":true,"note":"..."}` to reactivate. Deactivation blocks login, desktop-code redemption, and every existing API token immediately. It never deletes user data, wallet balance, or transaction history. Configured administrator accounts cannot be deactivated through this endpoint. Changes are written to `admin_audit_log` and are available in the Users tab of `admin.html`.
 - `POST /api/admin/topups/:id/review` — admin approves/rejects a pending top-up. An approved status transition credits the wallet through a database trigger and creates one ledger entry. Check the actual transaction inside SquashberryPay before approving.
-- `POST /api/orders` — creates a priced service request after approved account verification, authorisation acknowledgements, and a sufficient wallet balance. The price is calculated on the server, not trusted from the browser.
+- `POST /api/imei/check` — validates a 15-digit IMEI, sends only its 8-digit TAC to HiCellTek using the server-only `HICELLTEK_API_KEY`, reserves D150 through the existing wallet ledger, then completes the IMEI-check order. Provider errors and timeouts reject the unstarted order and trigger an automatic D150 refund. A short idempotency window prevents duplicate charges.
+- `POST /api/orders` — creates an unlock service request after approved account verification, authorisation acknowledgements, and a sufficient wallet balance. The price is calculated on the server, not trusted from the browser. Manual IMEI-check orders are no longer accepted here.
 - `POST /api/admin/orders/:id/status` — admin moves a service request through submitted → registered → processing → completed, or rejects it. A request rejected before processing starts is refunded automatically; rejection after processing starts does not trigger an automatic refund.
 
 The account verification workflow gates top-ups and service requests. Customers must assert that they own the device or have permission from its owner. Full serial/IMEI values are encrypted in D1 using `DEVICE_DATA_ENCRYPTION_KEY`; customer responses show only the masked suffix. Only `ADMIN_EMAILS` can use the admin queue. Do not expose raw identifiers in URLs or logs.
 
-Model pricing on the server reflects the published 414Unlock iPhone price bands (whole GMD): D1,550 through iPhone X; D1,550 for XR / XS / XS Max and SE (2nd/3rd gen); D2,050 for iPhone 11/12; D2,550 for iPhone 13/14; D3,050 for iPhone 15; and D3,550 for iPhone 16. The public services page also documents vendor-advertised iPhone/iPad compatibility; iPad orders remain quote-only until an iPad price and order flow are published. IMEI checks are D150; fast service adds D1,000. An eligible completed IMEI check may be applied once against the same device's unlock request if used within seven days.
+Model pricing on the server reflects the published 414Unlock iPhone price bands (whole GMD): D1,550 through iPhone X; D1,550 for XR / XS / XS Max and SE (2nd/3rd gen); D2,050 for iPhone 11/12; D2,550 for iPhone 13/14; D3,050 for iPhone 15; and D3,550 for iPhone 16. The public services page also documents vendor-advertised iPhone/iPad compatibility; iPad orders remain quote-only until an iPad price and order flow are published. Live HiCellTek IMEI/TAC checks are D150. A completed lookup can be applied once as a D150 credit against the same device's unlock request started within seven days. A TAC match identifies a device family but does not verify authenticity, ownership, blacklist/stolen status or carrier-lock status.
 
 ## Existing desktop payment session API
 
