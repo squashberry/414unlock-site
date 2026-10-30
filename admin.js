@@ -178,7 +178,7 @@ function setSiteControl(id,value){var n=el(id);if(n)n.checked=!!value;}
 function renderSiteControls(c){
  setSiteControl("site-service-mode",c.serviceMode);setSiteControl("site-geo",c.geoRestriction);
  setSiteControl("site-signup",c.signupEnabled);setSiteControl("site-login",c.loginEnabled);
- setSiteControl("site-browser",c.browserVerification);setSiteControl("site-payments",c.paymentsEnabled);
+ setSiteControl("site-payments",c.paymentsEnabled);
  setSiteControl("site-orders",c.newOrdersEnabled);setSiteControl("site-support",c.supportEnabled);
  el("site-service-message").value=c.serviceMessage||"";
  el("site-return-at").value=c.returnAt?new Date(Number(c.returnAt)*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16):"";
@@ -193,7 +193,7 @@ async function saveSiteControls(){
   var raw=el("site-return-at").value,returnAt=raw?Math.floor(new Date(raw).getTime()/1000):0;
   var body={serviceMode:el("site-service-mode").checked,serviceMessage:el("site-service-message").value,
    returnAt: returnAt,geoRestriction:el("site-geo").checked,signupEnabled:el("site-signup").checked,
-   loginEnabled:el("site-login").checked,browserVerification:el("site-browser").checked,
+   loginEnabled:el("site-login").checked,
    paymentsEnabled:el("site-payments").checked,newOrdersEnabled:el("site-orders").checked,
    supportEnabled:el("site-support").checked};
   if(!window.confirm("Save these live website controls now? Changes can affect visitors and active services."))return;
