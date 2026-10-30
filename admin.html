@@ -65,6 +65,15 @@ main{padding:40px 0 72px}
 .admin-actions{border-top:2px solid var(--ink);padding-top:18px}
 .admin-actions .portal-form{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .admin-actions .field{margin:0}
+.ios-rule-editor{background:#fff;border-radius:16px;padding:26px;margin-bottom:28px}
+.ios-rule-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.ios-rule-form .field{margin:0;min-width:0}
+.ios-rule-form .span-two{grid-column:1/-1}
+.ios-rule-form .portal-submit{grid-column:1/-1}
+.ios-rule-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+.ios-support-status{margin:0 0 18px;padding:12px 16px;border-radius:10px;background:#f1f3f9;color:var(--ink);font-size:14px}
+.ios-support-status.error{background:#fdf0f1;color:#7a1420}
+.ios-support-status.success{background:#eaf6ee;color:#114f2a}
 .portal-submit:only-of-type{grid-column:1/-1}
 label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
 input,select{width:100%;min-height:48px;border:1.5px solid var(--line);border-radius:10px;padding:10px 13px;font:inherit;font-size:16px;color:var(--ink);background:#fff}
@@ -82,7 +91,7 @@ footer{background:#fff;padding-bottom:30px}
 .foot .brand{color:var(--ink)}.foot .mark{background:var(--ink);color:#fff}
 .links{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
 .plain-refresh{font:600 14px var(--body);color:var(--blue);background:none;border:0;padding:0;cursor:pointer}.plain-refresh:hover{text-decoration:underline}
-@media(max-width:820px){.admin-detail-grid{grid-template-columns:1fr 1fr}.admin-actions .portal-form{grid-template-columns:1fr}.admin-actions .portal-submit{grid-column:1/-1}}
+@media(max-width:820px){.admin-detail-grid{grid-template-columns:1fr 1fr}.admin-actions .portal-form{grid-template-columns:1fr}.admin-actions .portal-submit{grid-column:1/-1}.ios-rule-form{grid-template-columns:1fr}.ios-rule-form .span-two,.ios-rule-form .portal-submit{grid-column:1}}
 @media(max-width:600px){.wrap{width:calc(100% - 32px)}.hide-sm{display:none}.stats{grid-template-columns:1fr 1fr 1fr}.admin-stat{padding-left:14px}.admin-stat span{font-size:12.5px}.admin-item{padding:20px 16px}.admin-detail-grid{grid-template-columns:1fr}.admin-tabs button{flex:1;padding:11px 8px}.admin-item-top{flex-direction:column}}
 </style>
 </head>
@@ -96,9 +105,33 @@ footer{background:#fff;padding-bottom:30px}
 </div></header>
 <main><div class="wrap">
 <div id="admin-banner" class="portal-banner" role="status" aria-live="polite" hidden></div>
-<div class="admin-tabs" role="tablist"><button type="button" id="tab-orders" class="active" role="tab" aria-selected="true">Service requests</button><button type="button" id="tab-topups" role="tab" aria-selected="false">Top-up review</button></div>
+<div class="admin-tabs" role="tablist"><button type="button" id="tab-orders" class="active" role="tab" aria-selected="true">Service requests</button><button type="button" id="tab-topups" role="tab" aria-selected="false">Top-up review</button><button type="button" id="tab-ios" role="tab" aria-selected="false">iOS support</button></div>
 <section id="orders-section"><div class="qhead"><h2>Device service requests</h2><p>Use the verified details to manually register the order with your service provider, then update its progress here. Do not start a service unless device authorisation has been checked.</p></div><div id="admin-orders" class="admin-card-list"><div class="empty-records">Connect the secure API to load requests.</div></div></section>
 <section id="topups-section" hidden><div class="qhead"><h2>SquashberryPay top-up verification</h2><p>Check each transaction inside SquashberryPay before approving. The submitted reference alone is not proof of payment. Approving a request credits the user’s wallet once.</p></div><div id="admin-topups" class="admin-card-list"><div class="empty-records">Connect the secure API to load requests.</div></div></section>
+<section id="ios-support-section" hidden>
+  <div class="qhead"><h2>iOS compatibility policy</h2><p>Control which iOS versions the desktop engine may proceed with. The app must check this live policy before starting an unlock workflow. If no rule matches, or the API is unavailable, the app must stop and say “This phone's iOS version isn't supported.”</p></div>
+  <div id="ios-support-status" class="ios-support-status" role="status" aria-live="polite">Loading iOS support rules…</div>
+  <div class="ios-rule-editor">
+    <h3 id="ios-rule-form-title">Add an iOS support rule</h3>
+    <p class="admin-note" style="margin:8px 0 20px">Exact version rules take priority over ranges. If only ranges match, the narrowest matching range wins. Enable a rule only after verifying the service and device compatibility.</p>
+    <form id="ios-rule-form" class="ios-rule-form">
+      <input id="ios-rule-id" type="hidden" value="">
+      <div class="field"><label for="ios-match-type">Rule type</label><select id="ios-match-type" name="matchType"><option value="exact">Exact iOS version</option><option value="range">iOS version range</option></select></div>
+      <div class="field"><label for="ios-rule-enabled">Policy</label><select id="ios-rule-enabled" name="enabled"><option value="disabled" selected>Disabled — block</option><option value="enabled">Enabled — allow</option></select></div>
+      <div id="ios-exact-field" class="field span-two"><label for="ios-rule-version">Exact iOS version</label><input id="ios-rule-version" name="version" inputmode="decimal" placeholder="e.g. 18.7" autocomplete="off" required></div>
+      <div id="ios-range-fields" class="span-two" hidden>
+        <div class="ios-rule-form">
+          <div class="field"><label for="ios-rule-min">First version in range</label><input id="ios-rule-min" name="minVersion" inputmode="decimal" placeholder="e.g. 17.0.1" autocomplete="off"></div>
+          <div class="field"><label for="ios-rule-max">Last version in range</label><input id="ios-rule-max" name="maxVersion" inputmode="decimal" placeholder="e.g. 18.7.9" autocomplete="off"></div>
+        </div>
+      </div>
+      <div class="field span-two"><label for="ios-rule-note">Admin note (optional)</label><input id="ios-rule-note" name="note" maxlength="250" placeholder="Compatibility note for internal use"></div>
+      <div class="ios-rule-actions span-two"><button id="ios-rule-save" class="portal-button portal-button-dark portal-submit" type="submit">Save rule</button><button id="ios-rule-cancel" class="portal-button portal-button-outline" type="button" hidden>Cancel edit</button></div>
+    </form>
+  </div>
+  <div class="qhead"><h2>Current rules</h2><p>Disabled rules block matching versions. Leave a version unlisted unless it has been checked and approved.</p></div>
+  <div id="admin-ios-rules" class="admin-card-list"><div class="empty-records">Connect the secure API to load rules.</div></div>
+</section>
 <p class="admin-note fine">Sensitive device details are encrypted in storage and should be used only for the submitted service. Avoid downloading or sharing this data. When service processing starts, refunds are not automatic.</p>
 </div></main>
 <footer><div class="stripe" aria-hidden="true"></div><div class="wrap foot"><a class="brand" href="index.html"><span class="mark">414</span><span>Unlock</span></a><div class="links"><a href="review.html">Identity review queue</a><a href="terms.html">Terms</a><button id="refresh-admin" class="plain-refresh" type="button">Refresh queue</button></div><span>Private 414Unlock admin</span></div></footer>
