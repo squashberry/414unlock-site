@@ -723,26 +723,26 @@ async function reviewSubmission(request, env, headers, id) {
 }
 
 const WALLET_MODEL_PRICES = Object.freeze({
-  iphone_6: 1400,
-  iphone_7: 1600,
-  iphone_8: 1900,
-  iphone_x: 2200,
+  iphone_6: 1550,
+  iphone_7: 1550,
+  iphone_8: 1550,
+  iphone_x: 1550,
   iphone_xr: 1550,
-  iphone_11_12: 3000,
-  iphone_13_14: 3500,
-  iphone_15: 5000,
-  iphone_16: 6500
+  iphone_11_12: 2050,
+  iphone_13_14: 2550,
+  iphone_15: 3050,
+  iphone_16: 3550
 });
 const WALLET_MODEL_NAMES = Object.freeze({
-  iphone_6: "iPhone 6 / 6 Plus / 6S / SE",
+  iphone_6: "iPhone 5S / 6 / 6 Plus / 6S / 6S Plus / SE (1st gen)",
   iphone_7: "iPhone 7 / 7 Plus",
   iphone_8: "iPhone 8 / 8 Plus",
   iphone_x: "iPhone X",
-  iphone_xr: "iPhone XR / XS / XS Max",
+  iphone_xr: "iPhone XR / XS / XS Max / SE (2nd and 3rd gen)",
   iphone_11_12: "iPhone 11 & 12 Series",
   iphone_13_14: "iPhone 13 & 14 Series",
   iphone_15: "iPhone 15 Series",
-  iphone_16: "iPhone 16 Series"
+  iphone_16: "iPhone 16 / 16e Series"
 });
 
 async function requireApprovedAccount(user, env) {
