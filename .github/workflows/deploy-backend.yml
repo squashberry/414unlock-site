@@ -10,7 +10,7 @@ on:
       workers_subdomain:
         description: Cloudflare workers.dev subdomain for this account
         required: true
-        default: squashberrypay
+        default: 414unlock
         type: string
 
 permissions:
@@ -29,12 +29,14 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+      CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+      CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+      CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
       ADMIN_EMAIL: ${{ inputs.admin_email }}
       WORKERS_SUBDOMAIN: ${{ inputs.workers_subdomain }}
       SQUASHBERRYPAY_TOPUP_URL: ${{ vars.SQUASHBERRYPAY_TOPUP_URL }}
       WORKER_NAME: 414unlock-auth-api
       D1_NAME: 414unlock-auth
-      R2_NAME: 414unlock-private-documents
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -53,6 +55,9 @@ jobs:
           [[ -z "$CLOUDFLARE_API_TOKEN" ]] && missing+=("CLOUDFLARE_API_TOKEN")
           [[ -z "$RESEND_API_KEY" ]] && missing+=("RESEND_API_KEY")
           [[ -z "$FROM_EMAIL" ]] && missing+=("FROM_EMAIL")
+          [[ -z "$CLOUDINARY_CLOUD_NAME" ]] && missing+=("CLOUDINARY_CLOUD_NAME")
+          [[ -z "$CLOUDINARY_API_KEY" ]] && missing+=("CLOUDINARY_API_KEY")
+          [[ -z "$CLOUDINARY_API_SECRET" ]] && missing+=("CLOUDINARY_API_SECRET")
           [[ -z "$ADMIN_EMAIL" ]] && missing+=("admin_email workflow input")
           [[ -z "$WORKERS_SUBDOMAIN" ]] && missing+=("workers_subdomain workflow input")
           [[ -z "$SQUASHBERRYPAY_TOPUP_URL" ]] && missing+=("SQUASHBERRYPAY_TOPUP_URL repository variable")
@@ -125,18 +130,6 @@ jobs:
           fi
           echo "database_id=$DB_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Reuse or provision the private R2 bucket
-        shell: bash
-        run: |
-          set -euo pipefail
-          if wrangler r2 bucket info "$R2_NAME" --json > "$RUNNER_TEMP/r2-info.json" 2>/dev/null; then
-            echo "Using existing R2 bucket: $R2_NAME"
-          else
-            echo "Creating missing private R2 bucket: $R2_NAME"
-            wrangler r2 bucket create "$R2_NAME" --location weur
-            wrangler r2 bucket info "$R2_NAME" --json > "$RUNNER_TEMP/r2-info.json"
-          fi
-
       - name: Create deployment config in the runner workspace
         shell: bash
         env:
@@ -159,9 +152,6 @@ jobs:
           database_id = "$D1_DATABASE_ID"
           migrations_dir = "migrations"
 
-          [[r2_buckets]]
-          binding = "DOCUMENTS"
-          bucket_name = "414unlock-private-documents"
           TOML
           test -s worker/wrangler.deploy.toml
           grep -q 'REPLACE_WITH_D1_DATABASE_ID' worker/wrangler.deploy.toml && {
@@ -206,6 +196,9 @@ jobs:
           fi
           printf '%s' "$RESEND_API_KEY" | wrangler secret put RESEND_API_KEY --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
           printf '%s' "$FROM_EMAIL" | wrangler secret put FROM_EMAIL --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
+          printf '%s' "$CLOUDINARY_CLOUD_NAME" | wrangler secret put CLOUDINARY_CLOUD_NAME --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
+          printf '%s' "$CLOUDINARY_API_KEY" | wrangler secret put CLOUDINARY_API_KEY --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
+          printf '%s' "$CLOUDINARY_API_SECRET" | wrangler secret put CLOUDINARY_API_SECRET --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
           printf '%s' "$ADMIN_EMAIL" | wrangler secret put ADMIN_EMAILS --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
 
       - name: Health-check production API

@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600&display=swap">
 <script src="site-config.js"></script><script defer src="admin.js" onerror="window.__fail=1"></script>
 <style>
+.support-message-card{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}.support-message-card .support-message-meta{font-size:12px;color:#65708a;margin-bottom:7px;font-weight:600}.support-message-card.customer{border-left:4px solid #a9b7e9}.support-message-card.admin{border-left:4px solid #91c84c}
 :root{--blue:#0b1f8f;--deep:#071463;--ink:#0d1337;--chalk:#eef1f8;--line:#d5dbec;--green:#17703a;--red:#cf1b2e;--mute:#586080;--disp:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;--body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
 *{box-sizing:border-box}[hidden]{display:none!important}
 body{margin:0;font:400 16px/1.55 var(--body);color:var(--ink);background:var(--chalk);-webkit-font-smoothing:antialiased}
@@ -105,7 +106,7 @@ footer{background:#fff;padding-bottom:30px}
 </div></header>
 <main><div class="wrap">
 <div id="admin-banner" class="portal-banner" role="status" aria-live="polite" hidden></div>
-<div class="admin-tabs" role="tablist"><button type="button" id="tab-orders" class="active" role="tab" aria-selected="true">Service requests</button><button type="button" id="tab-topups" role="tab" aria-selected="false">Top-up review</button><button type="button" id="tab-users" role="tab" aria-selected="false">Users</button><button type="button" id="tab-ios" role="tab" aria-selected="false">iOS support</button></div>
+<div class="admin-tabs" role="tablist"><button type="button" id="tab-orders" class="active" role="tab" aria-selected="true">Service requests</button><button type="button" id="tab-topups" role="tab" aria-selected="false">Top-up review</button><button type="button" id="tab-users" role="tab" aria-selected="false">Users</button><button type="button" id="tab-support" role="tab" aria-selected="false">Support inbox</button><button type="button" id="tab-ios" role="tab" aria-selected="false">iOS support</button></div>
 <section id="orders-section"><div class="qhead"><h2>Device service requests</h2><p>Use the verified details to manually register the order with your service provider, then update its progress here. Do not start a service unless device authorisation has been checked.</p></div><div id="admin-orders" class="admin-card-list"><div class="empty-records">Connect the secure API to load requests.</div></div></section>
 <section id="topups-section" hidden><div class="qhead"><h2>SquashberryPay top-up verification</h2><p>Check each transaction inside SquashberryPay before approving. The submitted reference alone is not proof of payment. Approving a request credits the user’s wallet once.</p></div><div id="admin-topups" class="admin-card-list"><div class="empty-records">Connect the secure API to load requests.</div></div></section>
 <section id="users-section" hidden>
@@ -116,6 +117,20 @@ footer{background:#fff;padding-bottom:30px}
   </form></div>
   <div id="admin-users-status" class="ios-support-status" role="status" aria-live="polite">Loading user accounts…</div>
   <div id="admin-users" class="admin-card-list"><div class="empty-records">Connect the secure API to load user accounts.</div></div>
+</section>
+<section id="support-section" hidden>
+  <div class="qhead"><h2>Customer support inbox</h2><p>Read customer conversations, reply from the admin workspace, and close or reopen tickets. Messages are visible only to the ticket owner and authorised administrators.</p></div>
+  <div id="admin-support-status" class="ios-support-status" role="status" aria-live="polite">Loading support conversations…</div>
+  <div class="ios-rule-actions" style="margin:12px 0 18px"><button id="support-open-filter" class="portal-button portal-button-dark" type="button">Open tickets</button><button id="support-all-filter" class="portal-button portal-button-outline" type="button">All tickets</button><button id="support-refresh" class="portal-button portal-button-outline" type="button">Refresh inbox</button></div>
+  <div id="admin-support-tickets" class="admin-card-list"><div class="empty-records">No support tickets loaded.</div></div>
+  <section id="admin-support-thread" class="ios-rule-editor" hidden>
+    <div class="qhead"><h2 id="admin-support-thread-title">Conversation</h2><p id="admin-support-thread-meta"></p></div>
+    <div id="admin-support-messages" class="admin-card-list" style="gap:10px"></div>
+    <form id="admin-support-reply-form" class="ios-rule-form">
+      <div class="field span-two"><label for="admin-support-reply">Reply to customer</label><textarea id="admin-support-reply" maxlength="4000" rows="4" required placeholder="Write a helpful reply…"></textarea></div>
+      <div class="ios-rule-actions span-two"><button id="admin-support-send" class="portal-button portal-button-dark portal-submit" type="submit">Send reply</button><button id="admin-support-toggle-status" class="portal-button portal-button-outline" type="button">Close ticket</button></div>
+    </form>
+  </section>
 </section>
 <section id="ios-support-section" hidden>
   <div class="qhead"><h2>iOS compatibility policy</h2><p>Control which iOS versions the desktop engine may proceed with. The app must check this live policy before starting an unlock workflow. If no rule matches, or the API is unavailable, the app must stop and say “This phone's iOS version isn't supported.”</p></div>

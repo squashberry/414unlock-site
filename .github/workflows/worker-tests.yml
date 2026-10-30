@@ -6,12 +6,16 @@ on:
       - "worker/**"
       - "admin.html"
       - "admin.js"
+      - "support.html"
+      - "support.js"
       - ".github/workflows/worker-tests.yml"
   pull_request:
     paths:
       - "worker/**"
       - "admin.html"
       - "admin.js"
+      - "support.html"
+      - "support.js"
       - ".github/workflows/worker-tests.yml"
 
 permissions:

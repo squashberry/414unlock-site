@@ -5,9 +5,9 @@ This is the server-side API for the 414Unlock website. It is separate from GitHu
 ## Provision resources
 
 1. Create a Cloudflare D1 database named `414unlock-auth`.
-2. Create a private R2 bucket named `414unlock-private-documents`.
+2. Configure Cloudinary secrets: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`. Identity documents are uploaded as authenticated raw assets; no public delivery URL is stored.
 3. Put the real D1 database ID into `wrangler.toml`.
-4. Apply migrations in order: `0001_init.sql`, `0002_payments.sql`, `0003_wallet_orders.sql`, and `0004_ios_support_rules.sql`, then `0005_user_account_controls.sql`. Example: `wrangler d1 migrations apply 414unlock-auth --remote`.
+4. Apply migrations in order: `0001_init.sql`, `0002_payments.sql`, `0003_wallet_orders.sql`, and `0004_ios_support_rules.sql`, then `0005_user_account_controls.sql` and `0006_support_chat.sql`. Example: `wrangler d1 migrations apply 414unlock-auth --remote`.
 5. Set secrets with `wrangler secret put JWT_SECRET`, `RESEND_API_KEY`, `FROM_EMAIL`, `ADMIN_EMAILS`, and `DEVICE_DATA_ENCRYPTION_KEY`.
 6. Make sure `FROM_EMAIL` is a sender verified with Resend. Use your own secure random values for the secrets; never commit them to GitHub.
 7. Deploy with `wrangler deploy`.
@@ -66,7 +66,7 @@ The wallet top-up workflow in this revision is deliberately **manual-review**: a
 
 Signup, email code verification, login, current account, single-use desktop handoff codes, verification status/submission, administrator identity-review queue, private document access and approve/reject are also present.
 
-Documents are uploaded to private R2, never published as public URLs, and are deleted from R2 after an administrator decision. Application metadata remains in D1 for an audit trail. Review admins are configured by the comma-separated `ADMIN_EMAILS` secret.
+Documents are uploaded to Cloudinary as raw assets with authenticated delivery, never published as public URLs, and are deleted after an administrator decision. Application metadata remains in D1 for an audit trail. Review admins are configured by the comma-separated `ADMIN_EMAILS` secret.
 
 ## Before production
 
@@ -86,13 +86,13 @@ Documents are uploaded to private R2, never published as public URLs, and are de
 The backend source is committed, but this repository does not contain Cloudflare credentials. To deploy it without hard-coding credentials or database IDs:
 
 1. In GitHub, open **Settings → Secrets and variables → Actions → Secrets** and add:
-   - `CLOUDFLARE_API_TOKEN` — a Cloudflare API token scoped to the intended account, with Workers Scripts Edit, D1 Edit, R2 storage edit, and the account permissions required to inspect the Workers.dev hostname.
+   - `CLOUDFLARE_API_TOKEN` — a Cloudflare API token scoped to the intended account, with Workers Scripts Edit, D1 Edit, Cloudinary credentials stored as Worker secrets, and the account permissions required to inspect the Workers.dev hostname.
    - `CLOUDFLARE_ACCOUNT_ID` — the 32-character account ID for the exact account you want to use.
    - `RESEND_API_KEY` — your Resend API key.
    - `FROM_EMAIL` — a sender identity verified with Resend.
 2. Under **Settings → Secrets and variables → Actions → Variables**, add `SQUASHBERRYPAY_TOPUP_URL`. This must be the official **custom-amount** SquashberryPay checkout link you created in the SquashberryPay merchant dashboard. A fixed-price product link cannot collect arbitrary wallet top-up amounts. The checkout URL is public configuration, so do not put secrets in it.
 3. Open **Actions → Deploy 414Unlock backend → Run workflow**. Enter the email address that should have administrator access. Use the Workers.dev account subdomain shown in Cloudflare; the default input is `squashberrypay`.
-4. The workflow checks its required settings before infrastructure changes, reuses the named D1 database if it exists, creates it only if missing, does the same for the R2 bucket, applies all tracked migrations, deploys the Worker, preserves existing JWT and device-encryption secrets (generating them only when absent), configures Resend and administrator access, then checks `/api/health`. Only after a successful health check does it write the API URL into `site-config.js`.
+4. The workflow checks its required settings before infrastructure changes, reuses the named D1 database if it exists, creates it only if missing, applies all tracked migrations, deploys the Worker, preserves existing JWT and device-encryption secrets (generating them only when absent), configures Resend, Cloudinary secrets and administrator access, then checks `/api/health`. Only after a successful health check does it write the API URL into `site-config.js`.
 5. Confirm the latest GitHub Pages build publishes the updated `site-config.js`, then test signup, email verification, admin login, wallet top-up and service ordering with a small non-production test before accepting real payments or device details.
 
 ### Payment handling is deliberately manual
@@ -100,3 +100,12 @@ The backend source is committed, but this repository does not contain Cloudflare
 The configured SquashberryPay URL must allow the customer to pay the exact amount requested. 414Unlock does not currently send the request reference into SquashberryPay's checkout session or verify a payment automatically through a documented server-to-server SquashberryPay API. The customer therefore submits SquashberryPay's transaction reference, and an administrator must look up and confirm the actual successful payment in SquashberryPay before approving the top-up. Approval credits the matching wallet exactly once; a submitted reference alone never adds credit. Do not set the variable to a fixed-amount checkout and assume the `amount` URL parameter will change that payment.
 
 The deployment workflow itself cannot create a SquashberryPay merchant payment link because that link belongs to your merchant account and must be configured by you in the SquashberryPay dashboard. Likewise, it cannot succeed without the Cloudflare API token, Resend key and verified sender being added to GitHub Actions secrets first.
+
+
+## Customer support centre
+
+The public support page is `support.html`. It includes FAQs and the support email address. Signed-in customers can create tickets, read replies, and continue a private conversation. The Admin workspace includes a Support inbox tab for the configured admin emails to read, reply, and close/reopen tickets. Customers can read only their own tickets; administrators can access all tickets.
+
+## Cloudinary secrets
+
+Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` as Cloudflare Worker secrets. Never add the API secret to `site-config.js`, HTML, or browser-side JavaScript. The Worker proxies authenticated document downloads only after checking administrator access.

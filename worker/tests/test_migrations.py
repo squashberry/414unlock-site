@@ -10,7 +10,7 @@ class WalletMigrationTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
         self.db.execute("PRAGMA foreign_keys = ON")
-        for migration in ("0001_init.sql", "0002_payments.sql", "0003_wallet_orders.sql", "0004_ios_support_rules.sql", "0005_user_account_controls.sql"):
+        for migration in ("0001_init.sql", "0002_payments.sql", "0003_wallet_orders.sql", "0004_ios_support_rules.sql", "0005_user_account_controls.sql", "0006_support_chat.sql"):
             self.db.executescript((MIGRATIONS / migration).read_text(encoding="utf-8"))
         self.db.execute(
             "INSERT INTO users (id, full_name, email, password_salt, password_hash, email_verified, created_at) VALUES (?,?,?,?,?,?,?)",
@@ -70,6 +70,21 @@ class WalletMigrationTests(unittest.TestCase):
         ).fetchone()
         self.assertEqual(row, (0, "Manual admin review", "admin@example.test"))
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM users WHERE id='user-1'").fetchone()[0], 1)
+
+    def test_support_tickets_and_messages_are_created_and_can_be_closed(self):
+        self.db.execute(
+            "INSERT INTO support_tickets (id,user_id,subject,status,created_at,updated_at,last_message_at) "
+            "VALUES ('ticket-1','user-1','Wallet top-up question','open',2000,2000,2000)"
+        )
+        self.db.execute(
+            "INSERT INTO support_messages (id,ticket_id,sender_type,sender_email,body,created_at) "
+            "VALUES ('message-1','ticket-1','customer','customer@example.test','My top-up is missing.',2000)"
+        )
+        self.db.commit()
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM support_messages WHERE ticket_id='ticket-1'").fetchone()[0],1)
+        self.db.execute("UPDATE support_tickets SET status='closed' WHERE id='ticket-1'")
+        self.db.commit()
+        self.assertEqual(self.db.execute("SELECT status FROM support_tickets WHERE id='ticket-1'").fetchone()[0],"closed")
     def test_topup_credits_wallet_once_after_pending_payment_is_approved(self):
         self.db.execute(
             """INSERT INTO topup_requests
