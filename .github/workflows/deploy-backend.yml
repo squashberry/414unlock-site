@@ -140,7 +140,7 @@ jobs:
 
           [vars]
           SITE_ORIGIN = "https://squashberry.github.io"
-          TERMS_VERSION = "2026-10-21"
+          TERMS_VERSION = "2026-10-30"
 
           [[d1_databases]]
           binding = "DB"
@@ -167,7 +167,7 @@ jobs:
           set -euo pipefail
           wrangler deploy --config worker/wrangler.deploy.toml
 
-      - name: Preserve generated secrets and configure mail and admin secrets
+      - name: Preserve existing secrets and configure Cloudinary and admin access
         shell: bash
         run: |
           set -euo pipefail
