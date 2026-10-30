@@ -45,6 +45,14 @@ export default {
         if (env.DB && env.JWT_SECRET) { try { await recordSecurityEvent(env, await requestIdentity(request, env), "country_gate", "blocked", "unsupported_country", ""); } catch (_) {} }
         return countryNotSupported(headers);
       }
+      if (siteControls.serviceMode && !path.startsWith("/api/admin/") && !["/api/access/check","/api/health","/api/auth/browser-challenge","/api/auth/login","/api/auth/me"].includes(path)) {
+        return json({error:"SERVICE_MODE",message:siteControls.serviceMessage,returnAt:siteControls.returnAt},503,headers);
+      }
+      if (path === "/api/auth/signup" && !siteControls.signupEnabled) return json({error:"SIGNUP_PAUSED",message:"New registrations are temporarily unavailable."},503,headers);
+      if (path === "/api/auth/login" && !siteControls.loginEnabled) return json({error:"LOGIN_PAUSED",message:"Sign-in is temporarily unavailable."},503,headers);
+      if (path === "/api/wallet/topups" && !siteControls.paymentsEnabled) return json({error:"PAYMENTS_PAUSED",message:"Payments are temporarily unavailable."},503,headers);
+      if (path === "/api/orders" && !siteControls.newOrdersEnabled) return json({error:"ORDERS_PAUSED",message:"New service requests are temporarily unavailable."},503,headers);
+      if (path === "/api/support/tickets" && request.method === "POST" && !siteControls.supportEnabled) return json({error:"SUPPORT_PAUSED",message:"The support inbox is temporarily unavailable."},503,headers);
       if (request.method === "GET" && path === "/api/access/check") {
         return json({ok:true,supported:true,serviceMode:siteControls.serviceMode,serviceMessage:siteControls.serviceMessage,returnAt:siteControls.returnAt,controls:siteControls.publicControls},200,headers);
       }
@@ -122,7 +130,7 @@ export default {
 const DEFAULT_SITE_CONTROLS = Object.freeze({
   serviceMode:false, serviceMessage:"We're carrying out scheduled maintenance. Please check back shortly.",
   returnAt:0, geoRestriction:true, signupEnabled:true, loginEnabled:true,
-  paymentsEnabled:true, supportEnabled:true, newOrdersEnabled:true, browserVerification:true
+  paymentsEnabled:true, supportEnabled:true, newOrdersEnabled:true
 });
 async function readSiteControls(env) {
   const out={...DEFAULT_SITE_CONTROLS};
@@ -131,12 +139,12 @@ async function readSiteControls(env) {
     const rows=await env.DB.prepare("SELECT control_key,control_value FROM site_controls").all();
     for(const row of rows.results||[]){
       const k=row.control_key,v=row.control_value;
-      if(k==="serviceMode"||k==="geoRestriction"||k==="signupEnabled"||k==="loginEnabled"||k==="paymentsEnabled"||k==="supportEnabled"||k==="newOrdersEnabled"||k==="browserVerification")out[k]=v==="true";
+      if(k==="serviceMode"||k==="geoRestriction"||k==="signupEnabled"||k==="loginEnabled"||k==="paymentsEnabled"||k==="supportEnabled"||k==="newOrdersEnabled")out[k]=v==="true";
       else if(k==="returnAt")out.returnAt=Math.max(0,Number(v)||0);
       else if(k==="serviceMessage")out.serviceMessage=String(v).slice(0,500);
     }
   } catch(_) {}
-  out.publicControls={geoRestriction:out.geoRestriction,signupEnabled:out.signupEnabled,loginEnabled:out.loginEnabled,paymentsEnabled:out.paymentsEnabled,supportEnabled:out.supportEnabled,newOrdersEnabled:out.newOrdersEnabled,browserVerification:out.browserVerification};
+  out.publicControls={geoRestriction:out.geoRestriction,signupEnabled:out.signupEnabled,loginEnabled:out.loginEnabled,paymentsEnabled:out.paymentsEnabled,supportEnabled:out.supportEnabled,newOrdersEnabled:out.newOrdersEnabled};
   return out;
 }
 async function getAdminSiteControls(request,env,headers){
@@ -146,7 +154,7 @@ async function getAdminSiteControls(request,env,headers){
 async function saveAdminSiteControls(request,env,headers){
   try{
     const admin=await requireAdmin(request,env),body=await readJson(request),now=Math.floor(Date.now()/1000);
-    const boolKeys=["serviceMode","geoRestriction","signupEnabled","loginEnabled","paymentsEnabled","supportEnabled","newOrdersEnabled","browserVerification"];
+    const boolKeys=["serviceMode","geoRestriction","signupEnabled","loginEnabled","paymentsEnabled","supportEnabled","newOrdersEnabled""];
     const values={};
     for(const k of boolKeys)if(typeof body[k]==="boolean")values[k]=String(body[k]);
     if(typeof body.serviceMessage==="string")values.serviceMessage=body.serviceMessage.trim().slice(0,500)||DEFAULT_SITE_CONTROLS.serviceMessage;
