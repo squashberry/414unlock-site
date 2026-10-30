@@ -10,7 +10,7 @@ class WalletMigrationTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
         self.db.execute("PRAGMA foreign_keys = ON")
-        for migration in ("0001_init.sql", "0002_payments.sql", "0003_wallet_orders.sql", "0004_ios_support_rules.sql", "0005_user_account_controls.sql", "0006_support_chat.sql", "0007_member_management.sql", "0008_browser_security.sql"):
+        for migration in ("0001_init.sql", "0002_payments.sql", "0003_wallet_orders.sql", "0004_ios_support_rules.sql", "0005_user_account_controls.sql", "0006_support_chat.sql", "0007_member_management.sql", "0008_browser_security.sql", "0009_site_controls.sql", "0010_imei_lookup_requests.sql"):
             self.db.executescript((MIGRATIONS / migration).read_text(encoding="utf-8"))
         self.db.execute(
             "INSERT INTO users (id, full_name, email, password_salt, password_hash, email_verified, created_at) VALUES (?,?,?,?,?,?,?)",
@@ -198,6 +198,68 @@ class WalletMigrationTests(unittest.TestCase):
         used = self.db.execute("SELECT check_credit_used_at FROM service_orders WHERE id='check-1'").fetchone()[0]
         self.assertIsNotNone(used)
         self.assertEqual(self.db.execute("SELECT amount FROM wallet_transactions WHERE reference='order:unlock-after-check'").fetchone()[0], -1250)
+
+
+    def test_imei_lookup_reservation_charges_once_and_failed_provider_request_refunds(self):
+        self.seed_wallet(300)
+        order_id = "a" * 32
+        fingerprint = "imei-fingerprint"
+        self.db.execute(
+            """INSERT INTO service_orders (
+                id,user_id,service_key,model_key,device_model,identifier_kind,
+                identifier_ciphertext,identifier_fingerprint,masked_identifier,
+                issue_description,fast_service,amount_due,status,ownership_confirmed,
+                no_signal_confirmed,created_at,updated_at
+            ) VALUES (?,?,'imei_check','iphone_xr','IMEI/TAC lookup','imei',
+                'encrypted',?,'•••• 1234','HiCellTek TAC lookup',0,150,'submitted',1,0,2000,2000)""",
+            (order_id, "user-1", fingerprint),
+        )
+        self.db.execute(
+            """INSERT INTO imei_lookup_requests
+            (request_id,user_id,service_order_id,identifier_fingerprint,tac,status,result_json,created_at,updated_at,expires_at)
+            VALUES (?,?,?,?,?,'processing',NULL,2000,2000,2120)""",
+            (order_id, "user-1", order_id, fingerprint, "12345678"),
+        )
+        self.db.commit()
+        self.assertEqual(self.wallet_balance(), 150)
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM wallet_transactions WHERE reference=?", ("order:" + order_id,)).fetchone()[0], 1)
+
+        self.db.execute(
+            "UPDATE service_orders SET device_model='Apple iPhone 13',status='completed',completed_at=2100,updated_at=2100 WHERE id=?",
+            (order_id,),
+        )
+        self.db.execute(
+            "UPDATE imei_lookup_requests SET status='completed',result_json='{\"found\":true}',updated_at=2100,expires_at=2400 WHERE request_id=?",
+            (order_id,),
+        )
+        self.db.commit()
+        self.assertEqual(self.wallet_balance(), 150)
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM wallet_transactions WHERE reference=?", ("order:" + order_id,)).fetchone()[0], 1)
+
+        failed_id = "b" * 32
+        self.db.execute(
+            """INSERT INTO service_orders (
+                id,user_id,service_key,model_key,device_model,identifier_kind,
+                identifier_ciphertext,identifier_fingerprint,masked_identifier,
+                issue_description,fast_service,amount_due,status,ownership_confirmed,
+                no_signal_confirmed,created_at,updated_at
+            ) VALUES (?,?,'imei_check','iphone_xr','IMEI/TAC lookup','imei',
+                'encrypted','failed-fingerprint','•••• 5678','HiCellTek TAC lookup',0,150,'submitted',1,0,2200,2200)""",
+            (failed_id, "user-1"),
+        )
+        self.db.execute(
+            """INSERT INTO imei_lookup_requests
+            (request_id,user_id,service_order_id,identifier_fingerprint,tac,status,result_json,created_at,updated_at,expires_at)
+            VALUES (?, ?, ?, 'failed-fingerprint','87654321','processing',NULL,2200,2200,2320)""",
+            (failed_id, "user-1", failed_id),
+        )
+        self.db.commit()
+        self.assertEqual(self.wallet_balance(), 0)
+        self.db.execute("UPDATE service_orders SET status='rejected',updated_at=2250 WHERE id=?", (failed_id,))
+        self.db.execute("UPDATE imei_lookup_requests SET status='failed',error_code='HICELLTEK_UNAVAILABLE',updated_at=2250 WHERE request_id=?", (failed_id,))
+        self.db.commit()
+        self.assertEqual(self.wallet_balance(), 150)
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM wallet_transactions WHERE reference=?", ("refund:" + failed_id,)).fetchone()[0], 1)
 
     def test_insufficient_wallet_balance_rejects_charge(self):
         self.seed_wallet(100)
