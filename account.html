@@ -5,7 +5,7 @@
 <title>Sign in · 414Unlock</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600&display=swap">
-<script src="site-config.js"></script><script defer src="account.js" onerror="window.__acctFail=1"></script>
+<script src="site-config.js"></script><script src="geo-guard.js"></script><script defer src="account.js" onerror="window.__acctFail=1"></script>
 <style>
 :root{--blue:#0b1f8f;--deep:#071463;--ink:#0d1337;--chalk:#eef1f8;--line:#d5dbec;--green:#17703a;--red:#cf1b2e;--mute:#586080;--disp:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;--body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
 *{box-sizing:border-box}.hidden,[hidden]{display:none!important}
@@ -47,7 +47,7 @@ small{display:block;font-size:13px;color:var(--mute);margin-top:6px}
 .safe{margin-top:20px;padding:14px 16px;border-left:5px solid var(--red);background:#fdf0f1;border-radius:0 10px 10px 0;font-size:14px;color:#5a0d17}
 .forgot{display:inline-block;margin-top:8px;font-size:14px;font-weight:600;color:var(--blue);text-decoration:underline;text-underline-offset:3px}.card:has(#tab-signup.active) .forgot{display:none}
 @media(max-width:860px){.shell{grid-template-columns:1fr}.side{padding:22px 24px;gap:0}.side-copy,.bars{display:none}.pane{padding:24px 24px 48px}.card{padding-top:24px}}
-</style>
+.browser-check-panel{display:flex;gap:14px;align-items:center;margin:4px 0 16px;padding:15px;border:1px solid #d5dbec;border-radius:12px;background:#f4f6ff}.browser-check-panel strong{display:block;color:var(--deep);font-size:14px}.browser-check-panel p{margin:4px 0;color:var(--ink);font-size:13.5px}.browser-check-panel small{margin:0;color:var(--mute);font-size:12px}.browser-check-orbit{position:relative;width:38px;height:38px;flex:0 0 38px;border:3px solid #cbd4ff;border-top-color:var(--blue);border-radius:50%;animation:sb-orbit 1s linear infinite}.browser-check-orbit span{position:absolute;width:7px;height:7px;top:2px;left:3px;border-radius:50%;background:var(--green)}.browser-check-orbit i{position:absolute;inset:7px;border:2px dashed var(--blue);border-radius:50%;animation:sb-orbit .75s linear infinite reverse}@keyframes sb-orbit{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.browser-check-orbit,.browser-check-orbit i{animation:none}}</style>
 </head>
 <body>
 <div class="stripe" aria-hidden="true"></div>
@@ -67,7 +67,10 @@ small{display:block;font-size:13px;color:var(--mute);margin-top:6px}
 <div id="name-wrap" class="field hidden"><label for="fullName">Full name</label><input id="fullName" name="fullName" autocomplete="name" maxlength="120" placeholder="Your full legal name"></div>
 <div class="field"><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"></div>
 <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required minlength="10" maxlength="128" placeholder="At least 10 characters"><small id="password-hint">Use the password you created for your account.</small><a class="forgot" href="forgot.html">Forgot your password?</a></div>
-<div id="email-code-wrap" class="field hidden"><label for="emailCode">Email verification code</label><input id="emailCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter the code sent to your email"><small>Check your inbox and spam folder. Codes expire.</small></div>
+<div id="browser-check-panel" class="browser-check-panel hidden" role="status" aria-live="polite">
+<div class="browser-check-orbit" aria-hidden="true"><span></span><i></i></div>
+<div><strong>Squashberry Browser Verification</strong><p id="browser-check-status">Preparing a rotating browser check…</p><small>Each sign-in and new account uses a fresh, one-time security check.</small></div>
+</div>
 <div id="message" class="message" role="status" aria-live="polite"></div>
 <button id="submit-button" class="btn" type="submit">Sign in <span>→</span></button>
 </form>
