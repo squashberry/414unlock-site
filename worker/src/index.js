@@ -3,7 +3,6 @@ const decoder = new TextDecoder();
 const PASSWORD_ITERATIONS = 310000;
 const TOKEN_TTL_SECONDS = 3600;
 const APP_CODE_TTL_SECONDS = 120;
-const EMAIL_CODE_TTL_SECONDS = 900;
 const MAX_DOCUMENT_BYTES = 7 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["application/pdf", "image/png", "image/jpeg"]);
 
@@ -20,10 +19,10 @@ export default {
         if (env.DB) {
           try {
             const tableCheck = await env.DB.prepare(
-              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','verification_submissions','payment_sessions','wallets','wallet_transactions','topup_requests','service_orders','ios_support_rules','support_tickets','support_messages','password_reset_tokens','admin_bootstrap_tokens')"
+              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','verification_submissions','payment_sessions','wallets','wallet_transactions','topup_requests','service_orders','ios_support_rules','support_tickets','support_messages','admin_bootstrap_tokens')"
             ).all();
             const names = new Set((tableCheck.results || []).map((row) => row.name));
-            databaseReady = ["users","verification_submissions","payment_sessions","wallets","wallet_transactions","topup_requests","service_orders","ios_support_rules","support_tickets","support_messages","password_reset_tokens","admin_bootstrap_tokens"].every((name) => names.has(name));
+            databaseReady = ["users","verification_submissions","payment_sessions","wallets","wallet_transactions","topup_requests","service_orders","ios_support_rules","support_tickets","support_messages","admin_bootstrap_tokens"].every((name) => names.has(name));
           } catch (_) { databaseReady = false; }
         }
         const cloudinaryReady = cloudinaryConfigured(env);
@@ -36,18 +35,20 @@ export default {
           ok: ready, service: "414unlock-api", version: "member-management-v1",
           checks: {
             database: databaseReady, privateDocuments: cloudinaryReady, authentication: authReady,
-            emailDelivery: Boolean(env.RESEND_API_KEY && env.FROM_EMAIL),
             adminAccess: adminReady, deviceEncryption: deviceEncryptionReady
           }
         }, ready ? 200 : 503, headers);
       }
+      if (!isSupportedCountry(request)) {
+        if (env.DB && env.JWT_SECRET) { try { await recordSecurityEvent(env, await requestIdentity(request, env), "country_gate", "blocked", "unsupported_country", ""); } catch (_) {} }
+        return countryNotSupported(headers);
+      }
+      if (request.method === "GET" && path === "/api/access/check") return json({ ok: true, supported: true }, 200, headers);
       if (!env.DB) return json({ error: "SERVICE_NOT_CONFIGURED", message: "The account database is not configured." }, 503, headers);
       if (!env.JWT_SECRET || env.JWT_SECRET.length < 32) return json({ error: "SERVICE_NOT_CONFIGURED", message: "The account service is not fully configured." }, 503, headers);
       if (request.method === "POST" && path === "/api/admin/bootstrap") return await bootstrapFirstAdmin(request, env, headers);
-      if (request.method === "POST" && path === "/api/auth/forgot-password") return await requestPasswordReset(request, env, headers);
-      if (request.method === "POST" && path === "/api/auth/reset-password") return await resetPassword(request, env, headers);
+      if (request.method === "POST" && path === "/api/auth/browser-challenge") return await beginBrowserChallenge(request, env, headers);
       if (request.method === "POST" && path === "/api/auth/signup") return await signup(request, env, headers);
-      if (request.method === "POST" && path === "/api/auth/verify-email") return await verifyEmail(request, env, headers);
       if (request.method === "POST" && path === "/api/auth/login") return await login(request, env, headers);
       if (request.method === "GET" && path === "/api/auth/me") return await getMe(request, env, headers);
       if (request.method === "POST" && path === "/api/auth/app-code") return await createAppCode(request, env, headers);
@@ -75,8 +76,9 @@ export default {
       if (request.method === "POST" && adminUserDeleteMatch) return await deleteAdminUser(request, env, headers, adminUserDeleteMatch[1]);
       const adminUserRestoreMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/restore$/i);
       if (request.method === "POST" && adminUserRestoreMatch) return await restoreAdminUser(request, env, headers, adminUserRestoreMatch[1]);
-      const adminUserPasswordResetMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/password-reset$/i);
-      if (request.method === "POST" && adminUserPasswordResetMatch) return await sendAdminUserPasswordReset(request, env, headers, adminUserPasswordResetMatch[1]);
+      const adminUserPasswordMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/password$/i);
+      if (request.method === "POST" && adminUserPasswordMatch) return await setAdminUserPassword(request, env, headers, adminUserPasswordMatch[1]);
+      if (request.method === "GET" && path === "/api/admin/security/events") return await listAdminSecurityEvents(request, env, headers);
       const adminUserWalletMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/wallet-adjustment$/i);
       if (request.method === "POST" && adminUserWalletMatch) return await adjustAdminUserWallet(request, env, headers, adminUserWalletMatch[1]);
       const adminUserStatusMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/status$/i);
@@ -110,6 +112,8 @@ export default {
   }
 };
 
+function isSupportedCountry(request) { return String(request && request.cf && request.cf.country || "").toUpperCase() === "GM"; }
+function countryNotSupported(headers) { return json({ error:"COUNTRY_NOT_SUPPORTED", message:"Sorry, this country isn't supported. Contact us at 414unlock@gmail.com if you have any questions or requests." },403,headers); }
 function isOriginAllowed(origin, env) {
   if (!origin) return true;
   const allowed = (env.SITE_ORIGIN || "https://squashberry.github.io").split(",").map((x) => x.trim()).filter(Boolean);
@@ -168,6 +172,58 @@ async function hmacBytes(value, secret) {
   const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(value)));
 }
+async function requestIdentity(request, env) {
+  const ip=request.headers.get("CF-Connecting-IP")||"unknown",agent=(request.headers.get("User-Agent")||"unknown").slice(0,500),cf=request.cf||{};
+  return {ipHash:await keyedHash("414unlock-ip:"+ip,env),userAgentHash:await keyedHash("414unlock-agent:"+agent,env),country:String(cf.country||"XX").slice(0,2).toUpperCase(),asn:String(cf.asn||"").slice(0,20)};
+}
+async function recordSecurityEvent(env,identity,action,outcome,reason,email) {
+  const now=Math.floor(Date.now()/1000),emailHash=email?await keyedHash("414unlock-email:"+String(email).trim().toLowerCase(),env):"";
+  await env.DB.prepare("INSERT INTO auth_security_events (id,action,outcome,reason,ip_hash,email_hash,country,asn,user_agent_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .bind(randomHex(16),String(action).slice(0,60),outcome==="allowed"?"allowed":"blocked",String(reason||"").slice(0,120),identity.ipHash,emailHash,identity.country,identity.asn,identity.userAgentHash,now).run();
+}
+function hasLeadingZeroBits(hex,bits) {
+  if(typeof hex!=="string"||!/^[a-f0-9]{64}$/i.test(hex)||!Number.isInteger(bits)||bits<1||bits>24)return false;
+  let remaining=bits;
+  for(let i=0;i<hex.length&&remaining>0;i++){const nibble=parseInt(hex[i],16);if(remaining>=4){if(nibble!==0)return false;remaining-=4;}else{return (nibble>>(4-remaining))===0;}}
+  return remaining===0;
+}
+async function beginBrowserChallenge(request,env,headers) {
+  try {
+    const body=await readJson(request),purpose=String(body.purpose||"").trim();
+    if(!["signup","login","admin_bootstrap"].includes(purpose))throw new ApiError(400,"INVALID_BROWSER_CHECK","The browser check request is invalid.");
+    const identity=await requestIdentity(request,env),now=Math.floor(Date.now()/1000);
+    await env.DB.prepare("DELETE FROM auth_browser_challenges WHERE expires_at < ?").bind(now-600).run();
+    const issued=await env.DB.prepare("SELECT COUNT(*) AS count FROM auth_browser_challenges WHERE ip_hash=? AND created_at>?").bind(identity.ipHash,now-600).first();
+    if(Number(issued&&issued.count||0)>=24){await recordSecurityEvent(env,identity,"browser_challenge_rate_limited","blocked","challenge_rate_limit","");throw new ApiError(429,"BROWSER_CHECK_RATE_LIMIT","Too many security checks were requested. Please try again later.");}
+    const id=randomHex(16),nonce=randomHex(32),expiresAt=now+120,nonceHash=await keyedHash("browser-challenge:"+id+":"+nonce,env);
+    await env.DB.prepare("INSERT INTO auth_browser_challenges (id,purpose,nonce_hash,ip_hash,user_agent_hash,expires_at,attempts,used_at,created_at) VALUES (?,?,?,?,?,?,0,NULL,?)").bind(id,purpose,nonceHash,identity.ipHash,identity.userAgentHash,expiresAt,now).run();
+    return json({ok:true,challengeId:id,nonce,difficulty:12,expiresAt},200,headers);
+  } catch(error){throwOrReturn(error,headers);}
+}
+async function verifyBrowserChallenge(request,env,body,expectedPurpose) {
+  const identity=await requestIdentity(request,env),check=body&&body.browserVerification||{},id=typeof check.challengeId==="string"?check.challengeId.trim().toLowerCase():"",nonce=typeof check.nonce==="string"?check.nonce.trim().toLowerCase():"",proof=typeof check.proof==="string"?check.proof.trim().toLowerCase():"",counter=Number(check.counter),signals=check.signals||{};
+  const reject=async reason=>{try{await recordSecurityEvent(env,identity,"browser_challenge_failed","blocked",reason,body&&body.email);}catch(_){}throw new ApiError(403,"BROWSER_VERIFICATION_FAILED","We couldn't verify this browser session. Refresh the page and try again.");};
+  if(!/^[a-f0-9]{32}$/.test(id)||!/^[a-f0-9]{64}$/.test(nonce)||!/^[a-f0-9]{64}$/.test(proof)||!Number.isSafeInteger(counter)||counter<0||counter>10000000)return reject("malformed_proof");
+  if(signals.webCrypto!==true||signals.webdriver===true||!Array.isArray(signals.languages)||signals.languages.length<1||signals.languages.length>5||signals.languages.some(v=>typeof v!=="string"||v.length<1||v.length>24))return reject("browser_signal_anomaly");
+  const row=await env.DB.prepare("SELECT id,purpose,nonce_hash,ip_hash,user_agent_hash,expires_at,attempts,used_at FROM auth_browser_challenges WHERE id=?").bind(id).first(),now=Math.floor(Date.now()/1000);
+  if(!row||row.purpose!==expectedPurpose||row.used_at||row.expires_at<=now||Number(row.attempts||0)>=3||!constantTimeEqual(row.ip_hash,identity.ipHash)||!constantTimeEqual(row.user_agent_hash,identity.userAgentHash))return reject("expired_replayed_or_changed_browser");
+  const expectedNonceHash=await keyedHash("browser-challenge:"+id+":"+nonce,env);
+  if(!constantTimeEqual(row.nonce_hash,expectedNonceHash))return reject("nonce_mismatch");
+  const actual=await sha256Hex(nonce+":"+String(counter));
+  if(!constantTimeEqual(actual,proof)||!hasLeadingZeroBits(actual,12))return reject("invalid_work_proof");
+  const used=await env.DB.prepare("UPDATE auth_browser_challenges SET used_at=? WHERE id=? AND purpose=? AND used_at IS NULL AND expires_at>? AND ip_hash=? AND user_agent_hash=? RETURNING id").bind(now,id,expectedPurpose,now,identity.ipHash,identity.userAgentHash).first();
+  if(!used)return reject("challenge_already_used");
+  await recordSecurityEvent(env,identity,"browser_challenge_passed","allowed",expectedPurpose,body&&body.email);
+  return identity;
+}
+async function enforceLoginRateLimit(env,identity,email) {
+  const since=Math.floor(Date.now()/1000)-900,emailHash=await keyedHash("414unlock-email:"+String(email||"").trim().toLowerCase(),env);
+  const [ipFailures,emailFailures]=await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) AS count FROM auth_security_events WHERE action='login_failed' AND ip_hash=? AND created_at>?").bind(identity.ipHash,since).first(),
+    env.DB.prepare("SELECT COUNT(*) AS count FROM auth_security_events WHERE action='login_failed' AND email_hash=? AND created_at>?").bind(emailHash,since).first()
+  ]);
+  return Number(ipFailures&&ipFailures.count||0)>=40||Number(emailFailures&&emailFailures.count||0)>=8;
+}
 async function createPasswordHash(password, saltHex) {
   const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
   const salt = Uint8Array.from(saltHex.match(/.{2}/g).map((x) => parseInt(x, 16)));
@@ -198,7 +254,7 @@ async function readToken(request, env) {
   try { claims = JSON.parse(decoder.decode(fromBase64url(parts[1]))); } catch (_) { throw new ApiError(401, "INVALID_SESSION", "Your session is invalid. Sign in again."); }
   if (!claims.sub || !claims.exp || claims.iss !== "414unlock-auth" || claims.exp <= Math.floor(Date.now() / 1000)) throw new ApiError(401, "SESSION_EXPIRED", "Your session expired. Sign in again.");
   const user = await env.DB.prepare("SELECT id, full_name, email, email_verified, created_at, account_active, auth_version, deleted_at FROM users WHERE id = ?").bind(claims.sub).first();
-  if (!user || !user.email_verified || user.deleted_at) throw new ApiError(401, "INVALID_SESSION", "Your session is invalid. Sign in again.");
+  if (!user || user.deleted_at) throw new ApiError(401, "INVALID_SESSION", "Your session is invalid. Sign in again.");
   if (Number(user.account_active) !== 1) throw new ApiError(403, "ACCOUNT_DISABLED", "This 414Unlock account is currently deactivated. Contact support.");
   if (Number(claims.ver || 0) !== Number(user.auth_version || 0)) throw new ApiError(401, "SESSION_REVOKED", "Your account session has been reset. Sign in again.");
   return user;
@@ -207,77 +263,38 @@ function publicUser(user) { return { id: user.id, fullName: user.full_name, emai
 function validEmail(email) { return typeof email === "string" && email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 function htmlEscape(value) { return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function generateCode() { return String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0"); }
-async function sendEmail(env, to, subject, html) {
-  if (!env.RESEND_API_KEY || !env.FROM_EMAIL) throw new ApiError(503, "EMAIL_NOT_CONFIGURED", "Email verification is not configured yet. Contact support.");
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { "Authorization": "Bearer " + env.RESEND_API_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: env.FROM_EMAIL, to: [to], subject, html })
-  });
-  if (!response.ok) throw new ApiError(502, "EMAIL_DELIVERY_FAILED", "The verification email could not be sent. Try again later.");
+async function signup(request,env,headers) {
+  try{
+    const body=await readJson(request);await verifyBrowserChallenge(request,env,body,"signup");
+    const fullName=typeof body.fullName==="string"?body.fullName.trim():"",email=typeof body.email==="string"?body.email.trim().toLowerCase():"",password=typeof body.password==="string"?body.password:"";
+    if(fullName.length<2||fullName.length>120)throw new ApiError(400,"INVALID_NAME","Enter your full name.");
+    if(!validEmail(email))throw new ApiError(400,"INVALID_EMAIL","Enter a valid email address.");
+    if(password.length<10||password.length>128)throw new ApiError(400,"INVALID_PASSWORD","Use a password between 10 and 128 characters.");
+    if(isAdminEmail(email,env))throw new ApiError(403,"ADMIN_INVITE_REQUIRED","The administrator account must be created through the private first-time setup link.");
+    const existing=await env.DB.prepare("SELECT id FROM users WHERE email=?").bind(email).first();
+    if(existing)throw new ApiError(409,"ACCOUNT_EXISTS","An account already exists for this email. Try signing in.");
+    const id=randomHex(16),salt=randomHex(16),passwordHash=await createPasswordHash(password,salt),now=Math.floor(Date.now()/1000);
+    await env.DB.prepare("INSERT INTO users (id,full_name,email,password_salt,password_hash,email_verified,created_at) VALUES (?,?,?,?,?,1,?)").bind(id,fullName,email,salt,passwordHash,now).run();
+    const user=await env.DB.prepare("SELECT id,full_name,email,email_verified,account_active,auth_version FROM users WHERE id=?").bind(id).first();
+    await recordSecurityEvent(env,await requestIdentity(request,env),"signup","allowed","account_created",email);
+    return json({ok:true,token:await issueToken(user,env),user:publicUser(user),message:"Your account is ready."},201,headers);
+  }catch(error){throwOrReturn(error,headers);}
 }
-async function makeEmailCode(env, userId, purpose) {
-  const code = generateCode(), now = Math.floor(Date.now() / 1000), codeHash = await keyedHash(userId + ":" + purpose + ":" + code, env);
-  await env.DB.prepare("DELETE FROM email_codes WHERE user_id = ? AND purpose = ?").bind(userId, purpose).run();
-  await env.DB.prepare("INSERT INTO email_codes (id,user_id,purpose,code_hash,expires_at,attempts,created_at) VALUES (?,?,?,?,?,0,?)").bind(randomHex(16), userId, purpose, codeHash, now + EMAIL_CODE_TTL_SECONDS, now).run();
-  return code;
-}
-async function signup(request, env, headers) {
-  try {
-    const body = await readJson(request);
-    const fullName = typeof body.fullName === "string" ? body.fullName.trim() : "";
-    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-    const password = typeof body.password === "string" ? body.password : "";
-    if (fullName.length < 2 || fullName.length > 120) throw new ApiError(400, "INVALID_NAME", "Enter your full name.");
-    if (!validEmail(email)) throw new ApiError(400, "INVALID_EMAIL", "Enter a valid email address.");
-    if (password.length < 10 || password.length > 128) throw new ApiError(400, "INVALID_PASSWORD", "Use a password between 10 and 128 characters.");
-    if (isAdminEmail(email, env)) throw new ApiError(403, "ADMIN_INVITE_REQUIRED", "The administrator account must be created through the private first-time setup link.");
-    if (!env.RESEND_API_KEY || !env.FROM_EMAIL) throw new ApiError(503, "EMAIL_NOT_CONFIGURED", "Email verification is not configured yet.");
-    const existing = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first();
-    if (existing) throw new ApiError(409, "ACCOUNT_EXISTS", "An account already exists for this email. Try signing in.");
-    const id = randomHex(16), salt = randomHex(16), passwordHash = await createPasswordHash(password, salt), now = Math.floor(Date.now() / 1000);
-    await env.DB.prepare("INSERT INTO users (id,full_name,email,password_salt,password_hash,email_verified,created_at) VALUES (?,?,?,?,?,0,?)").bind(id, fullName, email, salt, passwordHash, now).run();
-    try {
-      const code = await makeEmailCode(env, id, "verify_email");
-      await sendEmail(env, email, "Verify your 414Unlock account", "<div style='font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#182019'><h2>Verify your 414Unlock account</h2><p>Hello " + htmlEscape(fullName) + ",</p><p>Enter this code on the verification page. It expires in 15 minutes.</p><p style='font-size:30px;font-weight:700;letter-spacing:8px'>" + code + "</p><p>If you did not request this account, you can ignore this email.</p></div>");
-    } catch (error) { await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(id).run(); throw error; }
-    return json({ ok: true, needsEmailVerification: true, message: "A verification code has been sent to your email." }, 201, headers);
-  } catch (error) { throwOrReturn(error, headers); }
-}
-async function verifyEmail(request, env, headers) {
-  try {
-    const body = await readJson(request), email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "", code = typeof body.code === "string" ? body.code.trim() : "";
-    if (!validEmail(email) || !/^\d{6}$/.test(code)) throw new ApiError(400, "INVALID_CODE", "Enter the email address and six-digit code.");
-    const user = await env.DB.prepare("SELECT id,full_name,email,email_verified,account_active,auth_version,deleted_at FROM users WHERE email = ?").bind(email).first();
-    if (!user || user.deleted_at) throw new ApiError(400, "INVALID_CODE", "The code is invalid or expired.");
-    if (Number(user.account_active) !== 1) throw new ApiError(403, "ACCOUNT_DISABLED", "This 414Unlock account is currently deactivated. Contact support.");
-    if (user.email_verified) return json({ ok: true, token: await issueToken(user, env), user: publicUser(user) }, 200, headers);
-    const now = Math.floor(Date.now() / 1000);
-    const row = await env.DB.prepare("SELECT id,code_hash,expires_at,attempts FROM email_codes WHERE user_id = ? AND purpose = 'verify_email' ORDER BY created_at DESC LIMIT 1").bind(user.id).first();
-    if (!row || row.expires_at <= now || row.attempts >= 5) throw new ApiError(400, "INVALID_CODE", "The code is invalid or expired. Request a new one.");
-    const actual = await keyedHash(user.id + ":verify_email:" + code, env);
-    if (!constantTimeEqual(actual, row.code_hash)) {
-      await env.DB.prepare("UPDATE email_codes SET attempts = attempts + 1 WHERE id = ?").bind(row.id).run();
-      throw new ApiError(400, "INVALID_CODE", "The code is invalid or expired.");
-    }
-    await env.DB.prepare("UPDATE users SET email_verified = 1 WHERE id = ?").bind(user.id).run();
-    await env.DB.prepare("DELETE FROM email_codes WHERE user_id = ? AND purpose = 'verify_email'").bind(user.id).run();
-    const verifiedUser = { ...user, email_verified: 1 };
-    return json({ ok: true, token: await issueToken(verifiedUser, env), user: publicUser(verifiedUser) }, 200, headers);
-  } catch (error) { throwOrReturn(error, headers); }
-}
-async function login(request, env, headers) {
-  try {
-    const body = await readJson(request), email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "", password = typeof body.password === "string" ? body.password : "";
-    if (!validEmail(email) || !password) throw new ApiError(400, "INVALID_CREDENTIALS", "Enter your email and password.");
-    const user = await env.DB.prepare("SELECT id,full_name,email,password_salt,password_hash,email_verified,account_active,auth_version,deleted_at FROM users WHERE email = ?").bind(email).first();
-    const passwordHash = await createPasswordHash(password, user ? user.password_salt : "00000000000000000000000000000000");
-    if (!user || !constantTimeEqual(passwordHash, user.password_hash)) throw new ApiError(401, "INVALID_CREDENTIALS", "Email or password is incorrect.");
-    if (user.deleted_at) throw new ApiError(403, "ACCOUNT_DELETED", "This account has been deleted. Contact support to request recovery.");
-    if (!user.email_verified) throw new ApiError(403, "EMAIL_NOT_VERIFIED", "Verify your email before signing in.");
-    if (Number(user.account_active) !== 1) throw new ApiError(403, "ACCOUNT_DISABLED", "This 414Unlock account is currently deactivated. Contact support.");
-    return json({ ok: true, token: await issueToken(user, env), user: publicUser(user) }, 200, headers);
-  } catch (error) { throwOrReturn(error, headers); }
+async function login(request,env,headers) {
+  try{
+    const body=await readJson(request),email=typeof body.email==="string"?body.email.trim().toLowerCase():"",password=typeof body.password==="string"?body.password:"";
+    const identity=await verifyBrowserChallenge(request,env,body,"login");
+    if(!validEmail(email)||!password)throw new ApiError(400,"INVALID_CREDENTIALS","Enter your email and password.");
+    if(await enforceLoginRateLimit(env,identity,email)){await recordSecurityEvent(env,identity,"login_rate_limited","blocked","repeated_failed_signins",email);throw new ApiError(429,"LOGIN_RATE_LIMITED","Too many unsuccessful sign-in attempts. Try again later.");}
+    const user=await env.DB.prepare("SELECT id,full_name,email,password_salt,password_hash,email_verified,account_active,auth_version,deleted_at FROM users WHERE email=?").bind(email).first();
+    const passwordHash=await createPasswordHash(password,user?user.password_salt:"00000000000000000000000000000000");
+    if(!user||!constantTimeEqual(passwordHash,user.password_hash)){await recordSecurityEvent(env,identity,"login_failed","blocked","invalid_credentials",email);throw new ApiError(401,"INVALID_CREDENTIALS","Email or password is incorrect.");}
+    if(user.deleted_at)throw new ApiError(403,"ACCOUNT_DELETED","This account has been deleted. Contact support to request recovery.");
+    if(Number(user.account_active)!==1)throw new ApiError(403,"ACCOUNT_DISABLED","This 414Unlock account is currently deactivated. Contact support.");
+    if(!user.email_verified){await env.DB.prepare("UPDATE users SET email_verified=1 WHERE id=?").bind(user.id).run();user.email_verified=1;}
+    await recordSecurityEvent(env,identity,"login","allowed","credentials_accepted",email);
+    return json({ok:true,token:await issueToken(user,env),user:publicUser(user)},200,headers);
+  }catch(error){throwOrReturn(error,headers);}
 }
 async function getMe(request, env, headers) {
   try { const user = await readToken(request, env); return json({ ok: true, user: publicUser(user) }, 200, headers); }
@@ -298,7 +315,7 @@ async function redeemAppCode(request, env, headers) {
     const used = await env.DB.prepare("UPDATE app_codes SET used_at = ? WHERE code_hash = ? AND used_at IS NULL AND expires_at > ? RETURNING user_id").bind(now, codeHash, now).first();
     if (!used) throw new ApiError(400, "INVALID_APP_CODE", "The sign-in code is invalid or expired. Start sign-in again.");
     const user = await env.DB.prepare("SELECT id,full_name,email,email_verified,account_active,auth_version,deleted_at FROM users WHERE id = ?").bind(used.user_id).first();
-    if (!user || user.deleted_at || !user.email_verified) throw new ApiError(401, "AUTH_REQUIRED", "Sign in again to continue.");
+    if (!user || user.deleted_at) throw new ApiError(401, "AUTH_REQUIRED", "Sign in again to continue.");
     if (Number(user.account_active) !== 1) throw new ApiError(403, "ACCOUNT_DISABLED", "This 414Unlock account is currently deactivated. Contact support.");
     return json({ ok: true, token: await issueToken(user, env), user: publicUser(user) }, 200, headers);
   } catch (error) { throwOrReturn(error, headers); }
@@ -803,8 +820,7 @@ async function getAdminUserDetails(request,env,headers,id){
 }
 async function updateAdminUserProfile(request,env,headers,id){
   try{
-    const admin=await requireAdmin(request,env),body=await readJson(request);
-    const fullName=typeof body.fullName==="string"?body.fullName.trim():"",email=typeof body.email==="string"?body.email.trim().toLowerCase():"";
+    const admin=await requireAdmin(request,env),body=await readJson(request),fullName=typeof body.fullName==="string"?body.fullName.trim():"",email=typeof body.email==="string"?body.email.trim().toLowerCase():"";
     if(fullName.length<2||fullName.length>120)throw new ApiError(400,"INVALID_NAME","Enter a name between 2 and 120 characters.");
     if(!validEmail(email))throw new ApiError(400,"INVALID_EMAIL","Enter a valid email address.");
     const target=await env.DB.prepare("SELECT id,email,deleted_at FROM users WHERE id=?").bind(id).first();
@@ -812,25 +828,11 @@ async function updateAdminUserProfile(request,env,headers,id){
     if(isAdminEmail(target.email,env)&&email!==target.email.toLowerCase())throw new ApiError(403,"ADMIN_ACCOUNT_PROTECTED","The configured administrator email cannot be changed from member management.");
     if(email!==target.email.toLowerCase()&&isAdminEmail(email,env))throw new ApiError(409,"EMAIL_ALREADY_IN_USE","That email is reserved for an administrator account.");
     const changedEmail=email!==target.email.toLowerCase(),now=Math.floor(Date.now()/1000);
-    if(changedEmail){
-      if(!env.RESEND_API_KEY||!env.FROM_EMAIL)throw new ApiError(503,"EMAIL_NOT_CONFIGURED","Email delivery must be configured before changing a member's email address.");
-      const code=await makeEmailCode(env,id,"verify_email");
-      try{
-        await sendEmail(env,email,"Verify your new 414Unlock email address",
-          "<div style='font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0d1337'><h2>Verify your 414Unlock email</h2><p>Hello "+htmlEscape(fullName)+",</p><p>Your account email was changed by an administrator. Enter this code on the sign-in verification screen.</p><p style='font-size:30px;font-weight:700;letter-spacing:8px'>"+code+"</p></div>");
-      }catch(error){await env.DB.prepare("DELETE FROM email_codes WHERE user_id=? AND purpose='verify_email'").bind(id).run();throw error;}
-    }
-    const update=await env.DB.prepare(
-      "UPDATE users SET full_name=?,email=?,email_verified=CASE WHEN lower(email)<>? THEN 0 ELSE email_verified END,auth_version=auth_version+CASE WHEN lower(email)<>? THEN 1 ELSE 0 END WHERE id=?"
-    ).bind(fullName,email,email,email,id).run();
+    const update=await env.DB.prepare("UPDATE users SET full_name=?,email=?,email_verified=1,auth_version=auth_version+CASE WHEN lower(email)<>? THEN 1 ELSE 0 END WHERE id=?").bind(fullName,email,email,id).run();
     if(!update.meta||update.meta.changes!==1)throw new ApiError(409,"PROFILE_UPDATE_CONFLICT","The member profile could not be updated.");
-    if(changedEmail)await env.DB.prepare("DELETE FROM email_codes WHERE user_id=? AND purpose='verify_email' AND created_at<> (SELECT MAX(created_at) FROM email_codes WHERE user_id=? AND purpose='verify_email')").bind(id,id).run();
     await env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) VALUES (?,?,?,?,?,?)").bind(randomHex(16),admin.email,"user_profile_updated",id,"email_changed="+changedEmail+"; name_updated=true",now).run();
-    return json({ok:true,message:changedEmail?"Profile updated. A verification code was sent to the new email address.":"Member profile updated.",emailChanged:changedEmail},200,headers);
-  }catch(error){
-    if(String(error&&error.message||"").toLowerCase().includes("unique"))throw new ApiError(409,"EMAIL_ALREADY_IN_USE","That email address is already used by another account.");
-    throwOrReturn(error,headers);
-  }
+    return json({ok:true,message:changedEmail?"Member profile updated. The new email can be used immediately; existing sessions were revoked.":"Member profile updated.",emailChanged:changedEmail},200,headers);
+  }catch(error){if(String(error&&error.message||"").toLowerCase().includes("unique"))throw new ApiError(409,"EMAIL_ALREADY_IN_USE","That email address is already used by another account.");throwOrReturn(error,headers);}
 }
 async function updateAdminUserStatus(request,env,headers,id){
   try{
@@ -896,58 +898,31 @@ async function adjustAdminUserWallet(request,env,headers,id){
     return json({ok:true,balance:Number(wallet.balance),message:"Wallet adjustment saved to the transaction ledger."},200,headers);
   }catch(error){throwOrReturn(error,headers);}
 }
-async function createPasswordReset(env,user,admin){
-  if(!env.RESEND_API_KEY||!env.FROM_EMAIL)throw new ApiError(503,"EMAIL_NOT_CONFIGURED","Password recovery email is not configured yet.");
-  const token=randomHex(32),tokenHash=await keyedHash("password-reset:"+token,env),now=Math.floor(Date.now()/1000);
-  await env.DB.prepare("DELETE FROM password_reset_tokens WHERE user_id=?").bind(user.id).run();
-  await env.DB.prepare("INSERT INTO password_reset_tokens (id,user_id,token_hash,expires_at,used_at,used_by,created_at) VALUES (?,?,?, ?,NULL,NULL,?)").bind(randomHex(16),user.id,tokenHash,now+1800,now).run();
-  const origin=(env.SITE_ORIGIN||"https://squashberry.github.io").split(",")[0].trim().replace(/\/+$/,"");
-  const resetUrl=origin+"/414unlock-site/forgot.html?token="+encodeURIComponent(token);
-  await sendEmail(env,user.email,"Reset your 414Unlock password","<div style='font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0d1337'><h2>Reset your 414Unlock password</h2><p>Hello "+htmlEscape(user.full_name)+",</p><p>Use the secure link below to choose a new password. It expires in 30 minutes and works once.</p><p><a href='"+htmlEscape(resetUrl)+"'>Reset my password</a></p><p>If you did not request this, ignore this email.</p></div>");
-  if(admin)await env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) VALUES (?,?,?,?,?,?)").bind(randomHex(16),admin.email,"password_reset_sent",user.id,"A password reset link was sent.",now).run();
-}
-async function requestPasswordReset(request,env,headers){
+async function setAdminUserPassword(request,env,headers,id){
   try{
-    const body=await readJson(request),email=typeof body.email==="string"?body.email.trim().toLowerCase():"";
-    if(validEmail(email)){
-      const user=await env.DB.prepare("SELECT id,email,full_name,email_verified,account_active,deleted_at FROM users WHERE email=?").bind(email).first();
-      if(user&&user.email_verified&&Number(user.account_active)===1&&!user.deleted_at){
-        try{await createPasswordReset(env,user,null);}catch(error){console.error("414Unlock recovery email failed:",safeErrorCode(error));}
-      }
-    }
-    return json({ok:true,message:"If an active, verified account exists for that email, a password reset link will be sent."},200,headers);
-  }catch(error){throwOrReturn(error,headers);}
-}
-async function resetPassword(request,env,headers){
-  try{
-    const body=await readJson(request),token=typeof body.token==="string"?body.token.trim():"",password=typeof body.password==="string"?body.password:"";
-    if(!/^[a-f0-9]{64}$/i.test(token)||password.length<10||password.length>128)throw new ApiError(400,"INVALID_RESET_REQUEST","The reset link or new password is invalid.");
-    const tokenHash=await keyedHash("password-reset:"+token,env),now=Math.floor(Date.now()/1000);
-    const row=await env.DB.prepare("SELECT id,user_id FROM password_reset_tokens WHERE token_hash=? AND used_at IS NULL AND expires_at>?").bind(tokenHash,now).first();
-    if(!row)throw new ApiError(400,"RESET_LINK_EXPIRED","This password reset link has expired or has already been used. Request a new one.");
-    const salt=randomHex(16),passwordHash=await createPasswordHash(password,salt),useId=randomHex(16);
-    const results=await env.DB.batch([
-      env.DB.prepare("UPDATE password_reset_tokens SET used_at=?,used_by=? WHERE id=? AND used_at IS NULL AND expires_at>?").bind(now,useId,row.id,now),
-      env.DB.prepare("UPDATE users SET password_salt=?,password_hash=?,auth_version=auth_version+1 WHERE id=? AND deleted_at IS NULL AND EXISTS(SELECT 1 FROM password_reset_tokens WHERE id=? AND used_by=?)").bind(salt,passwordHash,row.user_id,row.id,useId),
-      env.DB.prepare("DELETE FROM password_reset_tokens WHERE user_id=? AND id<>?").bind(row.user_id,row.id)
-    ]);
-    if(!results[0].meta||results[0].meta.changes!==1||!results[1].meta||results[1].meta.changes!==1)throw new ApiError(400,"RESET_LINK_EXPIRED","This password reset link is invalid or has already been used.");
-    return json({ok:true,message:"Your password has been changed. Sign in with your new password."},200,headers);
-  }catch(error){throwOrReturn(error,headers);}
-}
-async function sendAdminUserPasswordReset(request,env,headers,id){
-  try{
-    const admin=await requireAdmin(request,env);
-    const user=await env.DB.prepare("SELECT id,email,full_name,email_verified,account_active,deleted_at FROM users WHERE id=?").bind(id).first();
+    const admin=await requireAdmin(request,env),body=await readJson(request),password=typeof body.password==="string"?body.password:"";
+    if(password.length<12||password.length>128)throw new ApiError(400,"INVALID_PASSWORD","Use a password between 12 and 128 characters.");
+    const user=await env.DB.prepare("SELECT id,email FROM users WHERE id=?").bind(id).first();
     if(!user)throw new ApiError(404,"USER_NOT_FOUND","That member account could not be found.");
-    if(!user.email_verified||Number(user.account_active)!==1||user.deleted_at)throw new ApiError(409,"ACCOUNT_NOT_READY","Activate and verify this member account before sending password recovery.");
-    await createPasswordReset(env,user,admin);
-    return json({ok:true,message:"A password reset link has been sent to the member's registered email."},200,headers);
+    if(isAdminEmail(user.email,env))throw new ApiError(403,"ADMIN_ACCOUNT_PROTECTED","Use the private administrator recovery process for this account.");
+    const salt=randomHex(16),passwordHash=await createPasswordHash(password,salt),now=Math.floor(Date.now()/1000);
+    const update=await env.DB.prepare("UPDATE users SET password_salt=?,password_hash=?,auth_version=auth_version+1 WHERE id=?").bind(salt,passwordHash,id).run();
+    if(!update.meta||update.meta.changes!==1)throw new ApiError(409,"PASSWORD_UPDATE_CONFLICT","The member password could not be changed.");
+    await env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) VALUES (?,?,?,?,?,?)").bind(randomHex(16),admin.email,"member_password_changed",id,"Password reset by administrator; all sessions revoked.",now).run();
+    return json({ok:true,message:"The member password was changed and all existing sessions were revoked."},200,headers);
+  }catch(error){throwOrReturn(error,headers);}
+}
+async function listAdminSecurityEvents(request,env,headers){
+  try{
+    await requireAdmin(request,env);
+    const result=await env.DB.prepare("SELECT action,outcome,reason,ip_hash,email_hash,country,asn,created_at FROM auth_security_events ORDER BY created_at DESC LIMIT 100").all();
+    return json({ok:true,events:(result.results||[]).map(x=>({action:x.action,outcome:x.outcome,reason:x.reason,ipFingerprint:String(x.ip_hash||"").slice(0,12),accountFingerprint:String(x.email_hash||"").slice(0,12),countryCode:x.country||"XX",asn:x.asn||"",createdAt:x.created_at}))},200,headers);
   }catch(error){throwOrReturn(error,headers);}
 }
 async function bootstrapFirstAdmin(request,env,headers){
   try{
     const body=await readJson(request),email=typeof body.email==="string"?body.email.trim().toLowerCase():"",fullName=typeof body.fullName==="string"?body.fullName.trim():"",password=typeof body.password==="string"?body.password:"",token=typeof body.token==="string"?body.token.trim():"";
+    await verifyBrowserChallenge(request,env,body,"admin_bootstrap");
     if(!validEmail(email)||!isAdminEmail(email,env))throw new ApiError(403,"ADMIN_BOOTSTRAP_EMAIL","Use the administrator email configured for this service.");
     if(fullName.length<2||fullName.length>120||password.length<12||password.length>128||!/^[a-f0-9]{64}$/i.test(token))throw new ApiError(400,"INVALID_BOOTSTRAP_DETAILS","Enter your name, the private setup token, and a password of at least 12 characters.");
     const userCount=await env.DB.prepare("SELECT COUNT(*) AS count FROM users").first();
