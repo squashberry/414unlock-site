@@ -100,6 +100,14 @@ class WalletMigrationTests(unittest.TestCase):
             "VALUES ('challenge-1','login','nonce-hash','ip-hash','agent-hash',3000,1000)"
         )
         self.db.execute(
+            "UPDATE auth_browser_challenges SET attempts=attempts+1 "
+            "WHERE id='challenge-1' AND used_at IS NULL AND expires_at>1500 AND attempts<3"
+        )
+        self.assertEqual(
+            self.db.execute("SELECT attempts FROM auth_browser_challenges WHERE id='challenge-1'").fetchone()[0],
+            1,
+        )
+        self.db.execute(
             "UPDATE auth_browser_challenges SET used_at=2000 "
             "WHERE id='challenge-1' AND used_at IS NULL AND expires_at>2000"
         )
