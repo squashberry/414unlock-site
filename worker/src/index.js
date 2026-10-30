@@ -320,37 +320,72 @@ function validEmail(email) { return typeof email === "string" && email.length <=
 function htmlEscape(value) { return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function generateCode() { return String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0"); }
 async function signup(request,env,headers) {
+  let stage="read_body",identity=null,email="";
   try{
-    const body=await readJson(request);await verifyBrowserChallenge(request,env,body,"signup");
-    const fullName=typeof body.fullName==="string"?body.fullName.trim():"",email=typeof body.email==="string"?body.email.trim().toLowerCase():"",password=typeof body.password==="string"?body.password:"";
+    const body=await readJson(request);
+    email=typeof body.email==="string"?body.email.trim().toLowerCase():"";
+    stage="browser_verification";
+    identity=await verifyBrowserChallenge(request,env,body,"signup");
+    stage="validate_input";
+    const fullName=typeof body.fullName==="string"?body.fullName.trim():"",password=typeof body.password==="string"?body.password:"";
     if(fullName.length<2||fullName.length>120)throw new ApiError(400,"INVALID_NAME","Enter your full name.");
     if(!validEmail(email))throw new ApiError(400,"INVALID_EMAIL","Enter a valid email address.");
     if(password.length<10||password.length>128)throw new ApiError(400,"INVALID_PASSWORD","Use a password between 10 and 128 characters.");
-    if(isAdminEmail(email,env))throw new ApiError(403,"ADMIN_INVITE_REQUIRED","The administrator account must be created through the private first-time setup link.");
+    if(isAdminEmail(email,env)){
+      try{await recordSecurityEvent(env,identity,"signup_admin_blocked","blocked","admin_email_requires_private_setup",email);}catch(_){}
+      throw new ApiError(403,"ADMIN_INVITE_REQUIRED","The administrator account must be created through the private first-time setup link.");
+    }
+    stage="check_existing_account";
     const existing=await env.DB.prepare("SELECT id FROM users WHERE email=?").bind(email).first();
     if(existing)throw new ApiError(409,"ACCOUNT_EXISTS","An account already exists for this email. Try signing in.");
+    stage="password_hash";
     const id=randomHex(16),salt=randomHex(16),passwordHash=await createPasswordHash(password,salt),now=Math.floor(Date.now()/1000);
+    stage="insert_user";
     await env.DB.prepare("INSERT INTO users (id,full_name,email,password_salt,password_hash,email_verified,created_at) VALUES (?,?,?,?,?,1,?)").bind(id,fullName,email,salt,passwordHash,now).run();
+    stage="read_created_user";
     const user=await env.DB.prepare("SELECT id,full_name,email,email_verified,account_active,auth_version FROM users WHERE id=?").bind(id).first();
-    await recordSecurityEvent(env,await requestIdentity(request,env),"signup","allowed","account_created",email);
+    if(!user)throw new Error("signup_user_readback_missing");
+    stage="record_signup_success";
+    await recordSecurityEvent(env,identity,"signup","allowed","account_created",email);
+    stage="issue_session";
     return json({ok:true,token:await issueToken(user,env),user:publicUser(user),message:"Your account is ready."},201,headers);
-  }catch(error){throwOrReturn(error,headers);}
+  }catch(error){
+    if(!(error instanceof ApiError)&&identity){
+      try{await recordSecurityEvent(env,identity,"signup_internal_error","blocked",stage+":"+safeErrorCode(error),email);}catch(_){}
+    }
+    throwOrReturn(error,headers);
+  }
 }
 async function login(request,env,headers) {
+  let stage="read_body",identity=null,email="";
   try{
-    const body=await readJson(request),email=typeof body.email==="string"?body.email.trim().toLowerCase():"",password=typeof body.password==="string"?body.password:"";
-    const identity=await verifyBrowserChallenge(request,env,body,"login");
+    const body=await readJson(request);
+    email=typeof body.email==="string"?body.email.trim().toLowerCase():"";
+    const password=typeof body.password==="string"?body.password:"";
+    stage="browser_verification";
+    identity=await verifyBrowserChallenge(request,env,body,"login");
+    stage="validate_input";
     if(!validEmail(email)||!password)throw new ApiError(400,"INVALID_CREDENTIALS","Enter your email and password.");
+    stage="login_rate_limit";
     if(await enforceLoginRateLimit(env,identity,email)){await recordSecurityEvent(env,identity,"login_rate_limited","blocked","repeated_failed_signins",email);throw new ApiError(429,"LOGIN_RATE_LIMITED","Too many unsuccessful sign-in attempts. Try again later.");}
+    stage="load_account";
     const user=await env.DB.prepare("SELECT id,full_name,email,password_salt,password_hash,email_verified,account_active,auth_version,deleted_at FROM users WHERE email=?").bind(email).first();
+    stage="password_hash";
     const passwordHash=await createPasswordHash(password,user?user.password_salt:"00000000000000000000000000000000");
-    if(!user||!constantTimeEqual(passwordHash,user.password_hash)){await recordSecurityEvent(env,identity,"login_failed","blocked","invalid_credentials",email);throw new ApiError(401,"INVALID_CREDENTIALS","Email or password is incorrect.");}
+    if(!user||!constantTimeEqual(passwordHash,user.password_hash)){stage="record_login_failure";await recordSecurityEvent(env,identity,"login_failed","blocked","invalid_credentials",email);throw new ApiError(401,"INVALID_CREDENTIALS","Email or password is incorrect.");}
     if(user.deleted_at)throw new ApiError(403,"ACCOUNT_DELETED","This account has been deleted. Contact support to request recovery.");
     if(Number(user.account_active)!==1)throw new ApiError(403,"ACCOUNT_DISABLED","This 414Unlock account is currently deactivated. Contact support.");
-    if(!user.email_verified){await env.DB.prepare("UPDATE users SET email_verified=1 WHERE id=?").bind(user.id).run();user.email_verified=1;}
+    if(!user.email_verified){stage="mark_email_verified";await env.DB.prepare("UPDATE users SET email_verified=1 WHERE id=?").bind(user.id).run();user.email_verified=1;}
+    stage="record_login_success";
     await recordSecurityEvent(env,identity,"login","allowed","credentials_accepted",email);
+    stage="issue_session";
     return json({ok:true,token:await issueToken(user,env),user:publicUser(user)},200,headers);
-  }catch(error){throwOrReturn(error,headers);}
+  }catch(error){
+    if(!(error instanceof ApiError)&&identity){
+      try{await recordSecurityEvent(env,identity,"login_internal_error","blocked",stage+":"+safeErrorCode(error),email);}catch(_){}
+    }
+    throwOrReturn(error,headers);
+  }
 }
 async function getMe(request, env, headers) {
   try { const user = await readToken(request, env); return json({ ok: true, user: publicUser(user) }, 200, headers); }
