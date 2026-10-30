@@ -17,7 +17,7 @@
 </div></header>
 <main><div class="wrap">
 <div id="admin-banner" class="portal-banner" role="status" aria-live="polite" hidden></div>
-<div class="admin-tabs" role="tablist"><button type="button" id="tab-orders" class="active" role="tab" aria-selected="true">Service requests</button><button type="button" id="tab-topups" role="tab" aria-selected="false">Top-up review</button><button type="button" id="tab-users" role="tab" aria-selected="false">Users</button><button type="button" id="tab-support" role="tab" aria-selected="false">Support inbox</button><button type="button" id="tab-ios" role="tab" aria-selected="false">iOS support</button></div>
+<div class="admin-tabs" role="tablist"><button type="button" id="tab-orders" class="active" role="tab" aria-selected="true">Service requests</button><button type="button" id="tab-topups" role="tab" aria-selected="false">Top-up review</button><button type="button" id="tab-users" role="tab" aria-selected="false">Users</button><button type="button" id="tab-support" role="tab" aria-selected="false">Support inbox</button><button type="button" id="tab-ios" role="tab" aria-selected="false">iOS support</button><button type="button" id="tab-security" role="tab" aria-selected="false">Security activity</button></div>
 <section id="orders-section"><div class="qhead"><h2>Device service requests</h2><p>Use the verified details to manually register the order with your service provider, then update its progress here. Do not start a service unless device authorisation has been checked.</p></div><div id="admin-orders" class="admin-card-list"><div class="empty-records">Connect the secure API to load requests.</div></div></section>
 <section id="topups-section" hidden><div class="qhead"><h2>SquashberryPay top-up verification</h2><p>Check each transaction inside SquashberryPay before approving. The submitted reference alone is not proof of payment. Approving a request credits the user’s wallet once.</p></div><div id="admin-topups" class="admin-card-list"><div class="empty-records">Connect the secure API to load requests.</div></div></section>
 <section id="users-section" hidden>
@@ -40,7 +40,7 @@
     </form>
     <div class="support-admin-panel"><h3>Account actions</h3><div class="ios-rule-actions">
       <button id="admin-user-status-toggle" class="portal-button portal-button-outline" type="button">Deactivate account</button>
-      <button id="admin-user-reset" class="portal-button portal-button-outline" type="button">Send password reset email</button>
+      <button id="admin-user-reset" class="portal-button portal-button-outline" type="button">Set member password</button>
       <button id="admin-user-delete" class="portal-button danger-action" type="button">Delete member</button>
       <button id="admin-user-restore" class="portal-button portal-button-dark" type="button" hidden>Restore deleted member</button>
     </div><p class="admin-note">Delete is recoverable: it blocks sign-in and archives the member in this list without erasing wallet, payment, verification, support, or service history. Restore returns the account to active status.</p></div>
@@ -68,7 +68,13 @@
     </form>
   </section>
 </section>
-<section id="ios-support-section" hidden>
+<section id="security-section" hidden>
+  <div class="qhead"><h2>Browser and account security</h2><p>Review recent sign-in activity, browser challenges, blocked attempts and unusual session changes.</p></div>
+  <div class="ios-rule-actions" style="margin:12px 0 18px"><button type="button" id="security-refresh" class="portal-button portal-button-outline">Refresh security activity</button></div>
+  <div id="security-status" class="ios-support-status" role="status" aria-live="polite">Loading recent security activity…</div>
+  <div id="admin-security-events" class="admin-card-list"><div class="empty-records">Connect the secure API to load security activity.</div></div>
+ </section>
+ <section id="ios-support-section" hidden>
   <div class="qhead"><h2>iOS compatibility policy</h2><p>Control which iOS versions the desktop engine may proceed with. The app must check this live policy before starting an unlock workflow. If no rule matches, or the API is unavailable, the app must stop and say “This phone's iOS version isn't supported.”</p></div>
   <div id="ios-support-status" class="ios-support-status" role="status" aria-live="polite">Loading iOS support rules…</div>
   <div class="ios-rule-editor">
