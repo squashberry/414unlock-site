@@ -32,7 +32,7 @@
     }
     if(!proof)throw new Error("The browser check expired. Refresh the page and try again.");
     browserState("Browser verified. Completing secure authentication…");
-    return {challengeId:challenge.challengeId,nonce:nonce,counter:counter,proof:proof,signals:{webCrypto:true,webdriver:false,languages:languages}};
+    return {challengeId:challenge.challengeId,nonce:nonce,counter:counter,proof:proof,signals:{webCrypto:true,webdriver:navigator.webdriver===true,languages:languages}};
   }
   function changeMode(newMode){
     mode=newMode;nameWrap.classList.toggle("hidden",mode!=="signup");tabs[0].classList.toggle("active",mode==="signin");tabs[1].classList.toggle("active",mode==="signup");
