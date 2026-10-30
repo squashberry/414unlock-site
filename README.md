@@ -34,22 +34,15 @@ The Worker must allow the exact site origin \`https://squashberry.github.io\` an
 
 ## Required API contract
 
-- \`POST /api/auth/signup\` — create account, send email verification code.
-- \`POST /api/auth/verify-email\` — verify email and issue short-lived access token.
-- \`POST /api/auth/login\` — authenticate email/password and issue token.
-- \`GET /api/auth/me\` — return authenticated user status.
-- \`POST /api/auth/app-code\` — create a random, short-lived, single-use desktop handoff code.
-- \`GET /api/verification/status\` — return \`not_submitted\`, \`pending\`, \`approved\`, or \`rejected\` and an optional review note.
-- \`POST /api/verification/submit\` — validate and privately store the multipart document submission.
-- \`GET /api/admin/submissions\` and \`POST /api/admin/submissions/:id/review\` — administrator-only review queue and decision endpoint.
-
-The desktop app should redeem the one-time code through a dedicated API endpoint. It must verify the state nonce generated locally before exchanging the code. After returning from payment, the desktop app must call /api/payments/status and POST the currently detected serial/IMEI/UDID to /api/payments/validate-device. Never pass a raw device identifier, access token, or document contents in a redirect URL.
-
-## Cloudflare backend setup
-
-The API requires a server-side service, database, and private object storage. GitHub Pages cannot securely store passwords, authenticate users, or protect identity documents on its own. Configure a Cloudflare Worker with D1 for account/verification metadata and private Cloudinary storage for documents. No outbound email provider is required for authentication. Keep all secrets as Worker secrets, never in this repo. Admin access must be decided by the Worker from trusted configuration, not by a field submitted by the browser.
-
-Before real users can submit documents, keep rate limits, password hashing, browser challenge replay protection, upload size/type validation, private storage, short-lived sessions, CSRF/CORS protection, one-way security event fingerprints, retention/deletion procedures, and a manual fallback for uncertain AI document matching.
+- `GET /api/access/check` — server-side access check used by the public-page guard.
+- `POST /api/auth/browser-challenge` — issue a rotating, single-use Squashberry browser challenge.
+- `POST /api/auth/signup` — create an account and authenticated session after browser proof is accepted.
+- `POST /api/auth/login` — authenticate email/password and issue a session after a fresh browser proof.
+- `GET /api/auth/me` — return authenticated user status.
+- `POST /api/auth/app-code` — create a random, short-lived, single-use desktop handoff code.
+- `GET /api/admin/security/events` — administrator-only recent browser and authentication activity.
+- `GET /api/verification/status` and `POST /api/verification/submit` — review and privately store identity/professional verification documents.
+- `GET /api/admin/submissions` and `POST /api/admin/submissions/:id/review` — administrator-only review queue and decision endpoint.
 
 ## Desktop integration
 
