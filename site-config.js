@@ -11,20 +11,217 @@ window.UNLOCK414_CONFIG = Object.freeze({
 });
 (function () {
   "use strict";
-  function adaptNavigation() {
-    var token = "";
-    try { token = localStorage.getItem("414unlock_token") || sessionStorage.getItem("414unlock_token") || ""; } catch (_) {}
-    if (!token) return;
-    document.querySelectorAll('a.brand[href="index.html"],a[aria-label="414Unlock home"][href="index.html"],a.back[href="index.html"]').forEach(function (a) { a.href = "dashboard.html"; a.setAttribute("aria-label", "414Unlock dashboard"); });
-    document.querySelectorAll('nav a[href="index.html"]').forEach(function (a) { if (/^\s*home\s*$/i.test(a.textContent)) { a.href = "dashboard.html"; a.textContent = "Dashboard"; } });
-    var nav = document.querySelector(".nav");
-    if (nav) {
-      var signIn = nav.querySelector('a[href^="account.html?flow=signin"]');
-      if (signIn) { signIn.href = "dashboard.html"; signIn.textContent = "Dashboard"; }
-      var signUp = nav.querySelector('a[href^="account.html?flow=signup"]');
-      if (signUp) signUp.hidden = true;
-    }
+
+  var TOKEN_KEY = "414unlock_token";
+  var FLOW_KEY = "414unlock_flow";
+  var config = window.UNLOCK414_CONFIG || {};
+  var api = String(config.API_BASE_URL || "").replace(/\\/+$/, "");
+  var token = readToken();
+
+  function store(name) {
+    try { return window[name]; } catch (_) { return null; }
   }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", adaptNavigation);
-  else adaptNavigation();
+  function safeGet(target, key) {
+    try { return target ? (target.getItem(key) || "") : ""; } catch (_) { return ""; }
+  }
+  function safeRemove(target, key) {
+    try { if (target) target.removeItem(key); } catch (_) {}
+  }
+  function readToken() {
+    try {
+      if (window.UNLOCK414_SESSION && typeof window.UNLOCK414_SESSION.getToken === "function") {
+        var shared = window.UNLOCK414_SESSION.getToken();
+        if (shared) return shared;
+      }
+    } catch (_) {}
+    return safeGet(store("localStorage"), TOKEN_KEY) || safeGet(store("sessionStorage"), TOKEN_KEY);
+  }
+  function clearSession() {
+    try {
+      if (window.UNLOCK414_SESSION && typeof window.UNLOCK414_SESSION.clear === "function") {
+        window.UNLOCK414_SESSION.clear();
+        return;
+      }
+    } catch (_) {}
+    [store("localStorage"), store("sessionStorage")].forEach(function (target) {
+      safeRemove(target, TOKEN_KEY);
+      safeRemove(target, FLOW_KEY);
+    });
+  }
+  function pageFile() {
+    var path = String(window.location.pathname || "").split("/").pop().toLowerCase();
+    return path || "index.html";
+  }
+  function isAccountPage() {
+    return pageFile() === "account.html";
+  }
+  function addPendingStyle() {
+    if (!document.documentElement) return;
+    document.documentElement.classList.add("u414-auth-pending");
+    var style = document.createElement("style");
+    style.textContent = "html.u414-auth-pending nav[aria-label='Main navigation'],html.u414-auth-pending nav.nav{visibility:hidden}";
+    (document.head || document.documentElement).appendChild(style);
+  }
+  function isHomeLink(anchor) {
+    var href = String(anchor.getAttribute("href") || "").split(/[?#]/)[0].toLowerCase();
+    return href === "index.html" || /^https?:\\/\\/[^/]+\\/index\\.html$/.test(href);
+  }
+  function isAccountAction(anchor) {
+    var href = String(anchor.getAttribute("href") || "").toLowerCase();
+    var label = String(anchor.textContent || "").replace(/\\s+/g, " ").trim().toLowerCase();
+    return /account\\.html(?:[?#]|$)/.test(href) ||
+      /^(dashboard|my wallet|sign in|create account|sign out|sign out \\/ switch account)$/.test(label) ||
+      href === "dashboard.html";
+  }
+  function makeLink(text, href, className) {
+    var anchor = document.createElement("a");
+    anchor.textContent = text;
+    anchor.href = href;
+    if (className) anchor.className = className;
+    return anchor;
+  }
+  function bindSignOut(anchor) {
+    anchor.id = "logout-link";
+    anchor.href = "account.html?flow=signin";
+    anchor.setAttribute("data-auth-action", "signout");
+    anchor.setAttribute("aria-label", "Sign out of 414Unlock");
+    anchor.addEventListener("click", function (event) {
+      event.preventDefault();
+      clearSession();
+      window.location.assign("account.html?flow=signin");
+    });
+  }
+  function normalizeMainNavigation(signedIn) {
+    var navs = document.querySelectorAll('nav[aria-label="Main navigation"],nav.nav');
+    Array.prototype.forEach.call(navs, function (nav) {
+      var anchors = Array.prototype.filter.call(nav.children, function (child) {
+        return child && child.tagName && child.tagName.toLowerCase() === "a";
+      });
+      var home = null;
+      anchors.forEach(function (anchor) {
+        if (isHomeLink(anchor) && !home) home = anchor;
+        if (isAccountAction(anchor)) anchor.remove();
+      });
+
+      if (signedIn) {
+        if (home) {
+          home.href = "dashboard.html";
+          home.textContent = "Dashboard";
+          home.setAttribute("aria-label", "Open your 414Unlock dashboard");
+          home.classList.add("auth-dashboard-link");
+        } else {
+          nav.appendChild(makeLink("Dashboard", "dashboard.html", "auth-dashboard-link"));
+        }
+        var signOut = makeLink("Sign out", "account.html?flow=signin", "btn btn-o auth-nav-button");
+        bindSignOut(signOut);
+        nav.appendChild(signOut);
+      } else {
+        if (home) {
+          home.href = "index.html";
+          home.textContent = "Home";
+          home.removeAttribute("aria-label");
+          home.classList.remove("auth-dashboard-link");
+        }
+        nav.appendChild(makeLink("Sign in", "account.html?flow=signin", "auth-nav-signin"));
+        nav.appendChild(makeLink("Create account", "account.html?flow=signup", "btn btn-w auth-nav-button"));
+      }
+    });
+  }
+  function normalizeAdminNavigation() {
+    var nav = document.querySelector('nav[aria-label="Admin navigation"]');
+    if (!nav) return;
+    var signOut = nav.querySelector("#logout-link") ||
+      Array.prototype.find.call(nav.querySelectorAll("a"), function (anchor) {
+        return /sign out/i.test(anchor.textContent || "");
+      });
+    if (signOut) bindSignOut(signOut);
+  }
+  function normalizeOtherAccountLinks(signedIn) {
+    var anchors = document.querySelectorAll("a[href]");
+    Array.prototype.forEach.call(anchors, function (anchor) {
+      if (anchor.closest("nav[aria-label='Main navigation'],nav.nav,nav[aria-label='Admin navigation']")) return;
+      var href = String(anchor.getAttribute("href") || "");
+      var label = String(anchor.textContent || "").replace(/\\s+/g, " ").trim().toLowerCase();
+      var isSignIn = /account\\.html\\?flow=signin/i.test(href);
+      var isSignUp = /account\\.html\\?flow=signup/i.test(href);
+      var isDashboard = /(^|\\/)dashboard\\.html(?:[?#]|$)/i.test(href);
+      if (signedIn && (isSignIn || isSignUp)) {
+        if (/return=support/i.test(href) || /sign in to chat/i.test(label)) {
+          anchor.href = "#new-ticket-form";
+          if (!anchor.querySelector("*")) anchor.textContent = "Open support chat";
+        } else {
+          anchor.href = "dashboard.html";
+          if (!anchor.querySelector("*") && /^(sign in|create account|account|my wallet|dashboard|open my account|back to sign in)$/.test(label)) {
+            anchor.textContent = "Dashboard";
+          }
+        }
+      } else if (!signedIn && isDashboard) {
+        anchor.href = "account.html?flow=signin";
+        if (!anchor.querySelector("*") && /^(dashboard|my wallet)$/.test(label)) anchor.textContent = "Sign in";
+      }
+      if (anchor.closest("footer")) {
+        if (signedIn && /account\\.html/i.test(href)) {
+          anchor.href = "dashboard.html";
+          if (!anchor.querySelector("*")) anchor.textContent = "Dashboard";
+        } else if (!signedIn && isDashboard) {
+          anchor.href = "account.html?flow=signin";
+          if (!anchor.querySelector("*")) anchor.textContent = "Account";
+        }
+      }
+    });
+  }
+  function renderNavigation(signedIn) {
+    normalizeMainNavigation(signedIn);
+    normalizeAdminNavigation();
+    normalizeOtherAccountLinks(signedIn);
+    document.documentElement.classList.remove("u414-auth-pending");
+  }
+  function accountDestination() {
+    var params = new URLSearchParams(window.location.search || "");
+    return params.get("return") === "support" ? "support.html" : "dashboard.html";
+  }
+  function validateSession() {
+    if (!token || !api) return Promise.resolve({ signedIn: false });
+    return fetch(api + "/api/auth/me", {
+      method: "GET",
+      headers: { Authorization: "Bearer " + token, Accept: "application/json" },
+      cache: "no-store"
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (response.ok && data && data.user) return { signedIn: true, user: data.user };
+        if (response.status === 401 || response.status === 403) {
+          clearSession();
+          token = "";
+          return { signedIn: false };
+        }
+        return { signedIn: true, unverified: true };
+      });
+    }).catch(function () {
+      // A temporary network failure must not show Sign in and Create account beside an existing session.
+      return { signedIn: true, unverified: true };
+    });
+  }
+  function initialize() {
+    var fallbackSignedIn = Boolean(token);
+    renderNavigation(fallbackSignedIn);
+    validateSession().then(function (auth) {
+      if (auth.signedIn !== fallbackSignedIn) renderNavigation(auth.signedIn);
+      if (isAccountPage() && auth.signedIn) window.location.replace(accountDestination());
+    });
+  }
+
+  addPendingStyle();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initialize, { once: true });
+  } else {
+    initialize();
+  }
+  window.addEventListener("pageshow", function () {
+    var freshToken = readToken();
+    if (freshToken !== token) {
+      token = freshToken;
+      renderNavigation(Boolean(token));
+      validateSession().then(function (auth) { renderNavigation(auth.signedIn); });
+    }
+  });
 })();
