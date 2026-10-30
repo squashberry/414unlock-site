@@ -40,11 +40,14 @@ export default {
           }
         }, ready ? 200 : 503, headers);
       }
-      if (!isSupportedCountry(request)) {
+      const siteControls = await readSiteControls(env);
+      if (siteControls.geoRestriction && !isSupportedCountry(request)) {
         if (env.DB && env.JWT_SECRET) { try { await recordSecurityEvent(env, await requestIdentity(request, env), "country_gate", "blocked", "unsupported_country", ""); } catch (_) {} }
         return countryNotSupported(headers);
       }
-      if (request.method === "GET" && path === "/api/access/check") return json({ ok: true, supported: true }, 200, headers);
+      if (request.method === "GET" && path === "/api/access/check") {
+        return json({ok:true,supported:true,serviceMode:siteControls.serviceMode,serviceMessage:siteControls.serviceMessage,returnAt:siteControls.returnAt,controls:siteControls.publicControls},200,headers);
+      }
       if (!env.DB) return json({ error: "SERVICE_NOT_CONFIGURED", message: "The account database is not configured." }, 503, headers);
       if (!env.JWT_SECRET || env.JWT_SECRET.length < 32) return json({ error: "SERVICE_NOT_CONFIGURED", message: "The account service is not fully configured." }, 503, headers);
       if (request.method === "POST" && path === "/api/admin/bootstrap") return await bootstrapFirstAdmin(request, env, headers);
@@ -80,6 +83,8 @@ export default {
       const adminUserPasswordMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/password$/i);
       if (request.method === "POST" && adminUserPasswordMatch) return await setAdminUserPassword(request, env, headers, adminUserPasswordMatch[1]);
       if (request.method === "GET" && path === "/api/admin/security/events") return await listAdminSecurityEvents(request, env, headers);
+      if (request.method === "GET" && path === "/api/admin/site-controls") return await getAdminSiteControls(request, env, headers);
+      if (request.method === "POST" && path === "/api/admin/site-controls") return await saveAdminSiteControls(request, env, headers);
       const adminUserWalletMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/wallet-adjustment$/i);
       if (request.method === "POST" && adminUserWalletMatch) return await adjustAdminUserWallet(request, env, headers, adminUserWalletMatch[1]);
       const adminUserStatusMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/status$/i);
@@ -113,7 +118,48 @@ export default {
   }
 };
 
-function isSupportedCountry(request) { return String(request && request.cf && request.cf.country || "").toUpperCase() === "GM"; }
+
+const DEFAULT_SITE_CONTROLS = Object.freeze({
+  serviceMode:false, serviceMessage:"We're carrying out scheduled maintenance. Please check back shortly.",
+  returnAt:0, geoRestriction:true, signupEnabled:true, loginEnabled:true,
+  paymentsEnabled:true, supportEnabled:true, newOrdersEnabled:true, browserVerification:true
+});
+async function readSiteControls(env) {
+  const out={...DEFAULT_SITE_CONTROLS};
+  if(!env.DB)return {...out,publicControls:{geoRestriction:out.geoRestriction}};
+  try {
+    const rows=await env.DB.prepare("SELECT control_key,control_value FROM site_controls").all();
+    for(const row of rows.results||[]){
+      const k=row.control_key,v=row.control_value;
+      if(k==="serviceMode"||k==="geoRestriction"||k==="signupEnabled"||k==="loginEnabled"||k==="paymentsEnabled"||k==="supportEnabled"||k==="newOrdersEnabled"||k==="browserVerification")out[k]=v==="true";
+      else if(k==="returnAt")out.returnAt=Math.max(0,Number(v)||0);
+      else if(k==="serviceMessage")out.serviceMessage=String(v).slice(0,500);
+    }
+  } catch(_) {}
+  out.publicControls={geoRestriction:out.geoRestriction,signupEnabled:out.signupEnabled,loginEnabled:out.loginEnabled,paymentsEnabled:out.paymentsEnabled,supportEnabled:out.supportEnabled,newOrdersEnabled:out.newOrdersEnabled,browserVerification:out.browserVerification};
+  return out;
+}
+async function getAdminSiteControls(request,env,headers){
+  try{await requireAdmin(request,env);const c=await readSiteControls(env);return json({ok:true,controls:c},200,headers);}
+  catch(error){throwOrReturn(error,headers);}
+}
+async function saveAdminSiteControls(request,env,headers){
+  try{
+    const admin=await requireAdmin(request,env),body=await readJson(request),now=Math.floor(Date.now()/1000);
+    const boolKeys=["serviceMode","geoRestriction","signupEnabled","loginEnabled","paymentsEnabled","supportEnabled","newOrdersEnabled","browserVerification"];
+    const values={};
+    for(const k of boolKeys)if(typeof body[k]==="boolean")values[k]=String(body[k]);
+    if(typeof body.serviceMessage==="string")values.serviceMessage=body.serviceMessage.trim().slice(0,500)||DEFAULT_SITE_CONTROLS.serviceMessage;
+    if(body.returnAt!==undefined){const n=Number(body.returnAt);if(!Number.isFinite(n)||n<0||n>4102444800)throw new ApiError(400,"INVALID_RETURN_TIME","Choose a valid return date and time.");values.returnAt=String(Math.floor(n));}
+    if(!Object.keys(values).length)throw new ApiError(400,"NO_CHANGES","Choose at least one setting to update.");
+    const stmts=Object.entries(values).map(([k,v])=>env.DB.prepare("INSERT INTO site_controls(control_key,control_value,updated_by,updated_at) VALUES(?,?,?,?) ON CONFLICT(control_key) DO UPDATE SET control_value=excluded.control_value,updated_by=excluded.updated_by,updated_at=excluded.updated_at").bind(k,v,admin.email,now));
+    await env.DB.batch(stmts);
+    try{await env.DB.prepare("INSERT INTO admin_audit_log(actor_email,action,created_at) VALUES(?,?,?)").bind(admin.email,"site_controls_updated:"+Object.keys(values).join(","),now).run();}catch(_){}
+    return json({ok:true,controls:await readSiteControls(env),message:"Website controls saved."},200,headers);
+  }catch(error){throwOrReturn(error,headers);}
+}
+
+function isSupportedCountry(request) { const cf=request&&request.cf||{};const code=String(cf.country||request.headers.get("cf-ipcountry")||"").trim().toUpperCase();return code==="GM"; }
 function countryNotSupported(headers) { return json({ error:"COUNTRY_NOT_SUPPORTED", message:"Sorry, this country isn't supported. Contact us at 414unlock@gmail.com if you have any questions or requests." },403,headers); }
 function isOriginAllowed(origin, env) {
   if (!origin) return true;
