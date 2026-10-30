@@ -6,6 +6,7 @@
   var root=document.documentElement;
   root.style.visibility="hidden";
   function blocked(){
+    if(!document.body){document.addEventListener("DOMContentLoaded",blocked,{once:true});return;}
     if(document.body){
       document.body.textContent="";
       document.body.style.cssText="margin:0;min-height:100vh;display:grid;place-items:center;padding:28px;box-sizing:border-box;background:#fff;color:#111827;font:16px/1.6 system-ui,-apple-system,'Segoe UI',sans-serif";
