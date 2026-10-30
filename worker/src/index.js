@@ -30,7 +30,7 @@ export default {
         const authReady = typeof env.JWT_SECRET === "string" && env.JWT_SECRET.length >= 32;
         const adminReady = Boolean(env.ADMIN_EMAILS && env.ADMIN_EMAILS.trim());
         const deviceEncryptionReady = typeof env.DEVICE_DATA_ENCRYPTION_KEY === "string" && env.DEVICE_DATA_ENCRYPTION_KEY.length >= 32;
-        // Login/admin auth do not depend on optional document storage or outbound email.
+        // Account authentication requires the browser-security schema; private document storage is separately reported.
         const ready = databaseReady && browserSecurityReady && authReady && adminReady && deviceEncryptionReady;
         return json({
           ok: ready, service: "414unlock-api", version: "member-management-v1",
