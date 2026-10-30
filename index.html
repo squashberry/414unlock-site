@@ -85,6 +85,20 @@ footer{padding-bottom:34px}
 @media(max-width:980px){.hero-grid,.two{grid-template-columns:1fr;gap:48px}.hero-grid{padding-bottom:72px}.steps{grid-template-columns:1fr 1fr;row-gap:40px}.steps li::after{display:none}.sec{padding:80px 0}}
 @media(max-width:600px){.wrap{width:calc(100% - 32px)}.hide-sm{display:none}nav{gap:16px}.rung{grid-template-columns:1fr;gap:4px}.ladder{padding:22px 18px}.steps{grid-template-columns:1fr}.terms>div{grid-template-columns:1fr auto;gap:4px 16px}.terms dt{grid-column:1/-1}.btn{width:100%}.nav .btn{width:auto;padding:0 14px}.acts{display:grid}.slip{padding:24px 22px 34px}}
 footer nav{flex-wrap:wrap;gap:10px 22px}
+.imei-home{background:var(--chalk)}
+.imei-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:72px;align-items:center}
+.imei-kicker{margin:0 0 14px;color:var(--green);font-size:13px;font-weight:800;letter-spacing:.12em}
+.imei-form{padding:30px;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 44px #101b4920}
+.imei-form label{display:block;margin:0 0 8px;font-weight:700}
+.imei-form input{width:100%;min-height:58px;padding:0 16px;border:1px solid #aeb8d4;border-radius:8px;background:#fff;color:var(--ink);font:600 20px var(--body);letter-spacing:.08em;font-variant-numeric:tabular-nums}
+.imei-form input:focus{outline:3px solid #b8c9ff;border-color:var(--blue)}
+.imei-fee{display:flex;justify-content:space-between;align-items:center;margin:18px 0;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.imei-fee span{color:var(--mute);font-size:14px}.imei-fee strong{font:800 24px var(--disp)}
+.imei-form .btn{width:100%;background:var(--blue);color:#fff;cursor:pointer}
+.imei-form .btn:hover{background:var(--deep)}
+.imei-message{min-height:24px;margin:8px 0 10px;color:var(--red);font-size:14px}
+.imei-fine{margin:14px 0 0;color:var(--mute);font-size:13px}
+@media(max-width:980px){.imei-grid{grid-template-columns:1fr;gap:32px}}
 @media(prefers-reduced-motion:reduce){.bar{animation:none}html{scroll-behavior:auto}}
 </style>
 </head>
@@ -93,12 +107,12 @@ footer nav{flex-wrap:wrap;gap:10px 22px}
 <header class="hero">
 <div class="wrap">
 <div class="nav-in"><a class="brand" href="index.html" aria-label="414Unlock home"><span class="mark">414</span><span>Unlock</span></a>
-<nav class="nav" aria-label="Main navigation"><a class="hide-sm" href="services.html">Services &amp; prices</a><a class="hide-sm" href="https://github.com/squashberry/414unlock-site/releases/latest" target="_blank" rel="noopener noreferrer">Download app</a><a class="hide-sm" href="guide.html">Service guide</a><a class="hide-sm" href="support.html">Help &amp; Support</a><a class="hide-sm" href="#how-it-works">How it works</a><a href="account.html?flow=signin">Sign in</a><a class="btn btn-w" href="account.html?flow=signup">Create account</a></nav></div>
+<nav class="nav" aria-label="Main navigation"><a class="hide-sm" href="services.html">Services &amp; prices</a><a class="hide-sm" href="#imei-check">IMEI check · D150</a><a class="hide-sm" href="https://github.com/squashberry/414unlock-site/releases/latest" target="_blank" rel="noopener noreferrer">Download app</a><a class="hide-sm" href="guide.html">Service guide</a><a class="hide-sm" href="support.html">Help &amp; Support</a><a class="hide-sm" href="#how-it-works">How it works</a><a href="account.html?flow=signin">Sign in</a><a class="btn btn-w" href="account.html?flow=signup">Create account</a></nav></div>
 <div class="hero-grid">
 <div>
 <h1>Know the price. Own the process.</h1>
 <p class="lede">A clearer way to request supported iPhone services. Add credit to your 414Unlock wallet, choose the service and track its status from one account.</p>
-<div class="acts"><a class="btn btn-w" href="services.html">Explore service prices</a><a class="btn btn-o" href="account.html?flow=signup">Create your account</a></div>
+<div class="acts"><a class="btn btn-w" href="services.html">Explore service prices</a><a class="btn btn-o" href="#imei-check">Check IMEI · D150</a><a class="btn btn-o" href="account.html?flow=signup">Create your account</a></div>
 <ul class="facts"><li>Prices in Gambian Dalasi</li><li>Every request is reviewed manually</li><li>A wallet in your account for service credit</li></ul>
 </div>
 <section class="ladder" id="prices" aria-labelledby="ladder-title">
@@ -116,6 +130,10 @@ footer nav{flex-wrap:wrap;gap:10px 22px}
 </div>
 </header>
 <main>
+<section class="sec imei-home" id="imei-check" aria-labelledby="imei-check-title"><div class="wrap imei-grid">
+<div><p class="imei-kicker">LIVE DEVICE LOOKUP</p><h2 id="imei-check-title">Check your iPhone IMEI.</h2><p class="lead">Enter the 15-digit IMEI to identify the device family, model information, release year and chipset using our live lookup service.</p><p class="notice"><b>Before you check:</b> A completed lookup costs D150 from your wallet, even when no TAC record is found. Provider errors are refunded. A TAC match does not confirm ownership, blacklist status, carrier lock or network eligibility.</p></div>
+<form class="imei-form" id="home-imei-form" novalidate><label for="home-imei">15-digit IMEI</label><input id="home-imei" name="imei" type="text" inputmode="numeric" pattern="[0-9]{15}" minlength="15" maxlength="15" autocomplete="off" spellcheck="false" placeholder="Enter 15 digits" aria-describedby="home-imei-message" required><div class="imei-fee"><span>Live IMEI check</span><strong>D150</strong></div><p class="imei-message" id="home-imei-message" role="status" aria-live="polite"></p><button class="btn" type="submit">Check IMEI</button><p class="imei-fine">You will be asked to sign in first. Your IMEI will be carried securely to the dashboard, where you must confirm that you own the device or have the owner's permission.</p></form>
+</div></section>
 <section class="sec"><div class="wrap two">
 <div><h2>Read this before you order.</h2><p class="lead">These are the published list prices. Final eligibility depends on device status and carrier.</p><p class="notice"><b>Important:</b> All listed unlock services are no-signal / Wi-Fi-only after service. Signal unlock is not currently available.</p></div>
 <dl class="terms">
@@ -147,5 +165,14 @@ footer nav{flex-wrap:wrap;gap:10px 22px}
 </div></section>
 </main>
 <footer><div class="stripe" aria-hidden="true"></div><div class="wrap foot"><a class="brand" href="index.html"><span class="mark">414</span><span>Unlock</span></a><nav aria-label="Footer"><a href="services.html">Services &amp; prices</a><a href="guide.html">Service guide</a><a href="support.html">Help &amp; Support</a><a href="used-iphone.html">Used iPhone guide</a><a href="shops.html">Repair shops</a><a href="policy.html">Ownership policy</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="account.html?flow=signin">Account</a></nav><span>© 414Unlock · The Gambia</span></div></footer>
+<script>
+(function(){
+  "use strict";
+  var form=document.getElementById("home-imei-form"),input=document.getElementById("home-imei"),message=document.getElementById("home-imei-message");
+  function validImei(value){if(!/^\d{15}$/.test(value))return false;var sum=0;for(var i=13;i>=0;i--){var digit=Number(value[i]);if((13-i)%2===0){digit*=2;if(digit>9)digit-=9;}sum+=digit;}return (10-(sum%10))%10===Number(value[14]);}
+  input.addEventListener("input",function(){input.value=input.value.replace(/\D/g,"").slice(0,15);message.textContent="";});
+  form.addEventListener("submit",function(event){event.preventDefault();message.textContent="";var imei=input.value.replace(/\D/g,"");if(!validImei(imei)){message.textContent="Enter a valid 15-digit IMEI and check the final digit.";input.focus();return;}try{sessionStorage.setItem("414unlock_pending_imei",imei);}catch(_){message.textContent="Your browser could not securely preserve the IMEI. Enable session storage and try again.";return;}var token="";try{token=sessionStorage.getItem("414unlock_token")||localStorage.getItem("414unlock_token")||"";}catch(_){}location.href=token?"dashboard.html#new-order":"account.html?flow=signin&return=imei";});
+})();
+</script>
 </body>
 </html>
