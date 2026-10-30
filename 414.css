@@ -206,3 +206,4 @@ textarea{resize:vertical}textarea:focus,select:focus{outline:none;border-color:v
 .support-page footer{border-top:1px solid var(--line);background:#fff;padding:22px 0 30px;color:var(--mute);font-size:12px}
 .support-page footer .wrap{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap}
 @media(max-width:720px){.support-page .contact-grid,.support-page .faq-list,.support-page .chat-layout{grid-template-columns:1fr}.support-page .hero{padding-top:38px}.support-page .section-head{display:block}.support-page .contact-card,.support-page .panel{padding:18px}.support-page .chat-top{display:block}}
+.support-page .back{color:#dbe2ff;text-decoration:none}.support-page .back:hover{text-decoration:underline;text-underline-offset:4px}
