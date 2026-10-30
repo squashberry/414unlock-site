@@ -164,7 +164,13 @@ footer{border-top:1px solid #e8ebf2}
 @media(max-width:980px){#app>.wrap{grid-template-columns:1fr;gap:16px}.tabs{grid-column:1;grid-row:1;position:static;flex-direction:row;overflow-x:auto;padding:7px}.tabs button{width:auto;flex:0 0 auto;padding:10px 13px}.tabs button:before{display:none}.view{grid-column:1;grid-row:2}.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.band>.wrap{padding-bottom:23px}.top{padding-top:24px;align-items:flex-start}.account-pill{width:100%;max-width:none}.hero-row{grid-template-columns:1fr;gap:12px}.bal,.vcard{min-height:unset}.bal{padding:22px}.vcard{padding:20px}.stats-grid{gap:9px}.stat-card{padding:13px 11px;gap:9px}.stat-icon{flex-basis:29px;height:29px}.tiles{grid-template-columns:1fr}.section-heading{align-items:flex-start}.overview-activity{padding:17px 15px}}
 @media(max-width:420px){.stats-grid{grid-template-columns:1fr 1fr}.stat-card{min-height:95px}.section-heading h2{font-size:19px}.section-heading p{max-width:220px}.text-link{font-size:11px}}
-\n</style>
+\n.imei-result-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}
+.imei-result-grid>div{min-width:0;padding:10px 12px;border:1px solid #dce3f4;border-radius:10px;background:#fff}
+.imei-result-grid small{margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.imei-result-grid strong{display:block;overflow-wrap:anywhere;font-size:14px}
+.imei-warning{margin-top:14px!important;color:#7a1420!important}
+@media(max-width:600px){.imei-result-grid{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
 <div class="stripe" aria-hidden="true"></div>
@@ -203,19 +209,32 @@ footer{border-top:1px solid #e8ebf2}
 <form id="submit-provider-ref-form"><div class="field"><label for="provider-reference">SquashberryPay transaction reference / ID</label><input id="provider-reference" name="providerReference" maxlength="120" autocomplete="off" placeholder="Transaction reference after payment" required></div><div id="reference-message" class="portal-message" role="status" aria-live="polite"></div><button id="reference-submit" class="btn btn-b submit" type="submit">Submit payment reference</button></form></div>
 </section></div>
 <div class="view" id="v-request"><section id="new-order" class="panel">
-<div class="ph"><span class="n">2</span><div><h2>Request an iPhone service</h2><p>Choose a published price. Your request is charged from available credit and queued for manual review.</p></div></div>
+<div class="ph"><span class="n">2</span><div><h2>Request an iPhone service</h2><p>Unlock requests are queued for review. IMEI checks use a live HiCellTek lookup and cost D150 from your wallet.</p></div></div>
 <form id="order-form">
 <div class="field"><label for="service-type">Service type</label><select id="service-type" name="serviceType" required><option value="unlock">iPhone unlock service</option><option value="imei_check">IMEI check</option></select></div>
-<div class="field"><label for="model-key">Price band</label><select id="model-key" name="modelKey" required><option value="iphone_6">iPhone 5S through iPhone 6S / SE (1st gen) — D1,550</option><option value="iphone_7">iPhone 7 / 7 Plus — D1,550</option><option value="iphone_8">iPhone 8 / 8 Plus — D1,550</option><option value="iphone_x">iPhone X — D1,550</option><option value="iphone_xr">iPhone XR / XS / XS Max / SE (2nd &amp; 3rd gen) — D1,550</option><option value="iphone_11_12">iPhone 11 &amp; 12 Series — D2,050</option><option value="iphone_13_14">iPhone 13 &amp; 14 Series — D2,550</option><option value="iphone_15">iPhone 15 Series — D3,050</option><option value="iphone_16">iPhone 16 / 16e Series — D3,550</option></select></div>
-<div class="field"><label for="exact-model">Exact iPhone model</label><input id="exact-model" name="deviceModel" maxlength="120" placeholder="e.g. iPhone 13 Pro Max" required><small>Enter the model shown in Settings or on the device.</small></div>
-<div class="two"><div class="field"><label for="identifier-kind">Device identifier type</label><select id="identifier-kind" name="identifierKind" required><option value="serial">Serial number</option><option value="imei">IMEI</option></select></div><div class="field"><label for="device-identifier">Serial / IMEI</label><input id="device-identifier" name="identifier" maxlength="64" autocomplete="off" placeholder="Device identifier" required></div></div>
-<div class="field"><label for="issue-description">Device issue / request notes</label><textarea id="issue-description" name="issueDescription" maxlength="1000" placeholder="Describe the device status and what you need reviewed." required></textarea></div>
+<div class="field" id="model-band-row"><label for="model-key">Price band</label><select id="model-key" name="modelKey" required><option value="iphone_6">iPhone 5S through iPhone 6S / SE (1st gen) — D1,550</option><option value="iphone_7">iPhone 7 / 7 Plus — D1,550</option><option value="iphone_8">iPhone 8 / 8 Plus — D1,550</option><option value="iphone_x">iPhone X — D1,550</option><option value="iphone_xr">iPhone XR / XS / XS Max / SE (2nd &amp; 3rd gen) — D1,550</option><option value="iphone_11_12">iPhone 11 &amp; 12 Series — D2,050</option><option value="iphone_13_14">iPhone 13 &amp; 14 Series — D2,550</option><option value="iphone_15">iPhone 15 Series — D3,050</option><option value="iphone_16">iPhone 16 / 16e Series — D3,550</option></select></div>
+<div class="field" id="exact-model-row"><label for="exact-model">Exact iPhone model</label><input id="exact-model" name="deviceModel" maxlength="120" placeholder="e.g. iPhone 13 Pro Max" required><small>Enter the model shown in Settings or on the device.</small></div>
+<div class="two"><div class="field" id="identifier-kind-row"><label for="identifier-kind">Device identifier type</label><select id="identifier-kind" name="identifierKind" required><option value="serial">Serial number</option><option value="imei">IMEI</option></select></div><div class="field"><label for="device-identifier">Serial / IMEI</label><input id="device-identifier" name="identifier" maxlength="64" autocomplete="off" placeholder="Device identifier" required></div></div>
+<div class="field" id="issue-row"><label for="issue-description">Device issue / request notes</label><textarea id="issue-description" name="issueDescription" maxlength="1000" placeholder="Describe the device status and what you need reviewed." required></textarea></div>
 <div id="fast-row" class="chk"><input id="fast-service" name="fastService" type="checkbox"><label for="fast-service">Add fast service for <b>+D1,000</b>. Priority is requested, not guaranteed; delivery still depends on eligibility.</label></div>
 <div id="no-signal-row" class="chk"><input id="no-signal-confirmed" name="noSignalConfirmed" type="checkbox" required><label for="no-signal-confirmed">I understand this listed unlock service is <b>Wi-Fi-only / no signal</b> after service.</label></div>
 <div class="chk"><input id="ownership-confirmed" name="ownershipConfirmed" type="checkbox" required><label for="ownership-confirmed">I own this device or have explicit permission from its owner to request this service, and the details I submitted are accurate.</label></div>
 <div class="quote"><span id="quote-label">Estimated service charge</span><strong id="order-quote">D1,550</strong></div>
-<small>A completed IMEI check for the same device may qualify for a D150 credit against an unlock started within 7 days. The server calculates final charges; your balance will be shown before the request is accepted.</small>
+<small>A successfully processed HiCellTek lookup costs D150, including when the TAC is not found. A completed check may qualify for a D150 credit against an unlock for the same device within 7 days. Provider errors are automatically refunded.</small>
 <div id="order-message" class="portal-message" role="status" aria-live="polite"></div>
+<div id="imei-result" class="follow" hidden aria-live="polite">
+  <h3 id="imei-result-title">IMEI lookup result</h3>
+  <p id="imei-result-summary"></p>
+  <div class="imei-result-grid">
+    <div><small>Brand</small><strong id="imei-result-brand">—</strong></div>
+    <div><small>Model</small><strong id="imei-result-model">—</strong></div>
+    <div><small>Model reference</small><strong id="imei-result-info">—</strong></div>
+    <div><small>Release year</small><strong id="imei-result-year">—</strong></div>
+    <div><small>Chipset</small><strong id="imei-result-chipset">—</strong></div>
+    <div><small>TAC</small><strong id="imei-result-tac">—</strong></div>
+  </div>
+  <small class="imei-warning">A TAC match identifies a device family only. It does not verify authenticity, ownership, blacklist/stolen status, carrier lock status or network eligibility.</small>
+</div>
 <button id="order-submit" class="btn btn-b submit" type="submit">Submit service request</button>
 </form>
 </section></div>
