@@ -19,10 +19,10 @@ export default {
         if (env.DB) {
           try {
             const tableCheck = await env.DB.prepare(
-              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','verification_submissions','payment_sessions','wallets','wallet_transactions','topup_requests','service_orders','ios_support_rules','support_tickets','support_messages','admin_bootstrap_tokens','auth_browser_challenges','auth_security_events','site_controls')"
+              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','verification_submissions','payment_sessions','wallets','wallet_transactions','topup_requests','service_orders','imei_lookup_requests','ios_support_rules','support_tickets','support_messages','admin_bootstrap_tokens','auth_browser_challenges','auth_security_events','site_controls')"
             ).all();
             const names = new Set((tableCheck.results || []).map((row) => row.name));
-            databaseReady = ["users","verification_submissions","payment_sessions","wallets","wallet_transactions","topup_requests","service_orders","ios_support_rules","support_tickets","support_messages","admin_bootstrap_tokens"].every((name) => names.has(name));
+            databaseReady = ["users","verification_submissions","payment_sessions","wallets","wallet_transactions","topup_requests","service_orders","imei_lookup_requests","ios_support_rules","support_tickets","support_messages","admin_bootstrap_tokens"].every((name) => names.has(name));
             browserSecurityReady = ["auth_browser_challenges","auth_security_events","site_controls"].every((name) => names.has(name));
           } catch (_) { databaseReady = false; }
         }
@@ -51,7 +51,7 @@ export default {
       if (path === "/api/auth/signup" && !siteControls.signupEnabled) return json({error:"SIGNUP_PAUSED",message:"New registrations are temporarily unavailable."},503,headers);
       if (path === "/api/auth/login" && !siteControls.loginEnabled) return json({error:"LOGIN_PAUSED",message:"Sign-in is temporarily unavailable."},503,headers);
       if (path === "/api/wallet/topups" && !siteControls.paymentsEnabled) return json({error:"PAYMENTS_PAUSED",message:"Payments are temporarily unavailable."},503,headers);
-      if (path === "/api/orders" && !siteControls.newOrdersEnabled) return json({error:"ORDERS_PAUSED",message:"New service requests are temporarily unavailable."},503,headers);
+      if ((path === "/api/orders" || path === "/api/imei/check") && !siteControls.newOrdersEnabled) return json({error:"ORDERS_PAUSED",message:"New service requests are temporarily unavailable."},503,headers);
       if (path === "/api/support/tickets" && request.method === "POST" && !siteControls.supportEnabled) return json({error:"SUPPORT_PAUSED",message:"The support inbox is temporarily unavailable."},503,headers);
       if (request.method === "GET" && path === "/api/access/check") {
         return json({ok:true,supported:true,serviceMode:siteControls.serviceMode,serviceMessage:siteControls.serviceMessage,returnAt:siteControls.returnAt,controls:siteControls.publicControls},200,headers);
@@ -70,6 +70,7 @@ export default {
       if (request.method === "POST" && path === "/api/wallet/topups") return await createTopupRequest(request, env, headers);
       const submitTopupMatch = path.match(/^\/api\/wallet\/topups\/([a-f0-9]{32})\/submit-reference$/i);
       if (request.method === "POST" && submitTopupMatch) return await submitTopupReference(request, env, headers, submitTopupMatch[1]);
+      if (request.method === "POST" && path === "/api/imei/check") return await checkImeiLookup(request, env, headers);
       if (request.method === "POST" && path === "/api/orders") return await createServiceOrder(request, env, headers);
       if (request.method === "GET" && path === "/api/support/tickets") return await listMySupportTickets(request, env, headers);
       if (request.method === "POST" && path === "/api/support/tickets") return await createSupportTicket(request, env, headers);
@@ -899,7 +900,8 @@ async function createServiceOrder(request, env, headers) {
   try {
     const user = await readToken(request, env), body = await readJson(request);
     await requireApprovedAccount(user, env);
-    const serviceKey = body.serviceType === "imei_check" ? "imei_check" : body.serviceType === "unlock" ? "unlock" : "";
+    if (body.serviceType === "imei_check") throw new ApiError(409, "LIVE_IMEI_CHECK_REQUIRED", "IMEI checks now run through the live HiCellTek lookup. Use the IMEI check form.");
+    const serviceKey = body.serviceType === "unlock" ? "unlock" : "";
     const modelKey = typeof body.modelKey === "string" ? body.modelKey.trim() : "";
     const deviceModel = typeof body.deviceModel === "string" ? body.deviceModel.trim().slice(0, 120) : "";
     const identifierKind = typeof body.identifierKind === "string" ? body.identifierKind.trim().toLowerCase() : "";
@@ -953,6 +955,234 @@ async function createServiceOrder(request, env, headers) {
     ).bind(id, user.id).first();
     return json({ ok: true, order: publicWalletOrder(order), balance: Number(wallet ? wallet.balance : 0), message: "Service request submitted. The request is queued for manual review." + (checkCredit ? " D150 IMEI-check credit was applied." : "") }, 201, headers);
   } catch (error) { throwOrReturn(error, headers); }
+}
+
+
+
+function isValidImei(value) {
+  if (typeof value !== "string" || !/^\d{15}$/.test(value)) return false;
+  let sum = 0;
+  for (let i = 13; i >= 0; i--) {
+    let digit = Number(value[i]);
+    if ((13 - i) % 2 === 0) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+  }
+  return (10 - (sum % 10)) % 10 === Number(value[14]);
+}
+
+async function getImeiLookupBalance(userId, env) {
+  const row = await env.DB.prepare("SELECT balance FROM wallets WHERE user_id=?").bind(userId).first();
+  return Number(row ? row.balance : 0);
+}
+
+async function failImeiLookup(requestId, userId, env, now, code, message) {
+  const safeMessage = String(message || "The lookup did not complete.").slice(0, 300);
+  await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE service_orders SET status='rejected',admin_note=?,updated_at=? WHERE id=? AND user_id=? AND status IN ('submitted','registered')"
+    ).bind("HiCellTek lookup failed: " + code, now, requestId, userId),
+    env.DB.prepare(
+      "UPDATE imei_lookup_requests SET status='failed',result_json=NULL,error_code=?,error_message=?,updated_at=?,expires_at=? WHERE request_id=? AND user_id=? AND status='processing'"
+    ).bind(code, safeMessage, now, now + 86400, requestId, userId)
+  ]);
+}
+
+async function existingImeiLookupResponse(row, user, env, now, headers) {
+  if (!row) return null;
+  if (row.status === "processing") {
+    if (now - Number(row.updated_at || row.created_at || now) > 120) {
+      await failImeiLookup(row.request_id, user.id, env, now, "LOOKUP_INTERRUPTED", "The previous lookup timed out. Its D150 reservation has been refunded. Start a new lookup.");
+      throw new ApiError(503, "LOOKUP_INTERRUPTED", "The previous lookup timed out and its D150 reservation has been refunded. Start a new lookup.");
+    }
+    throw new ApiError(409, "LOOKUP_IN_PROGRESS", "This IMEI lookup is already processing. Do not submit it again yet.");
+  }
+  if (row.status === "failed") {
+    throw new ApiError(409, row.error_code || "LOOKUP_PREVIOUSLY_FAILED", row.error_message || "The previous lookup failed and was refunded. Start a new lookup.");
+  }
+  if (row.status === "completed") {
+    if (row.result_json && Number(row.expires_at || 0) > now) {
+      let result;
+      try { result = JSON.parse(row.result_json); }
+      catch (_) { throw new ApiError(503, "LOOKUP_RESULT_UNAVAILABLE", "The completed lookup result cannot be restored. Contact support before retrying."); }
+      const balance = await getImeiLookupBalance(user.id, env);
+      return json({
+        ok: true, alreadyProcessed: true, amountCharged: 150, balance,
+        result, message: "This lookup was already completed and charged. No additional wallet deduction was made."
+      }, 200, headers);
+    }
+    throw new ApiError(409, "LOOKUP_ALREADY_COMPLETED", "This lookup was already charged. It cannot be charged again; start a new lookup to run another check.");
+  }
+  throw new ApiError(409, "LOOKUP_STATE_UNKNOWN", "The lookup state could not be confirmed. Refresh your wallet before retrying.");
+}
+
+async function checkImeiLookup(request, env, headers) {
+  try {
+    const user = await readToken(request, env);
+    const body = await readJson(request);
+    await requireApprovedAccount(user, env);
+
+    const imei = typeof body.imei === "string" ? body.imei.replace(/\D/g, "") : "";
+    const requestId = typeof body.requestId === "string" ? body.requestId.trim().toLowerCase() : "";
+    if (!isValidImei(imei)) {
+      throw new ApiError(400, "INVALID_IMEI", "Enter a valid 15-digit IMEI. The check digit does not match.");
+    }
+    if (!/^[a-f0-9]{32}$/.test(requestId)) {
+      throw new ApiError(400, "INVALID_LOOKUP_REQUEST", "The lookup request identifier is invalid. Refresh the form and try again.");
+    }
+    if (body.ownershipConfirmed !== true) {
+      throw new ApiError(400, "DEVICE_AUTHORIZATION_REQUIRED", "Confirm that you own this device or have permission from its owner.");
+    }
+    if (typeof env.HICELLTEK_API_KEY !== "string" || !env.HICELLTEK_API_KEY.trim()) {
+      throw new ApiError(503, "HICELLTEK_NOT_CONFIGURED", "The live IMEI service is not configured yet. No wallet charge was made.");
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const tac = imei.slice(0, 8);
+    const fingerprint = await keyedHash("wallet-order:imei:" + imei, env);
+    await ensureWallet(user.id, env, now);
+
+    // Keep only a brief result replay window; old request IDs remain reserved to stop duplicate charges.
+    await env.DB.prepare(
+      "UPDATE imei_lookup_requests SET result_json=NULL,updated_at=expires_at WHERE status='completed' AND expires_at<=? AND result_json IS NOT NULL"
+    ).bind(now).run();
+
+    let prior = await env.DB.prepare(
+      "SELECT request_id,user_id,service_order_id,identifier_fingerprint,status,result_json,error_code,error_message,created_at,updated_at,expires_at FROM imei_lookup_requests WHERE request_id=? AND user_id=?"
+    ).bind(requestId, user.id).first();
+    if (prior) {
+      if (prior.identifier_fingerprint !== fingerprint) {
+        throw new ApiError(409, "LOOKUP_REQUEST_REUSED", "This request ID belongs to a different IMEI. Start a fresh lookup.");
+      }
+      const response = await existingImeiLookupResponse(prior, user, env, now, headers);
+      if (response) return response;
+    }
+
+    const recent = await env.DB.prepare(
+      "SELECT request_id,user_id,service_order_id,identifier_fingerprint,status,result_json,error_code,error_message,created_at,updated_at,expires_at FROM imei_lookup_requests WHERE user_id=? AND identifier_fingerprint=? AND created_at>? ORDER BY created_at DESC LIMIT 1"
+    ).bind(user.id, fingerprint, now - 300).first();
+    if (recent && recent.request_id !== requestId && recent.status !== "failed") {
+      const response = await existingImeiLookupResponse(recent, user, env, now, headers);
+      if (response) return response;
+    }
+
+    const orphanedOrder = await env.DB.prepare(
+      "SELECT id FROM service_orders WHERE id=? AND user_id=? AND service_key='imei_check'"
+    ).bind(requestId, user.id).first();
+    if (orphanedOrder) {
+      throw new ApiError(409, "LOOKUP_ALREADY_COMPLETED", "This lookup request has already used its D150 charge. Start a new lookup.");
+    }
+
+    const balance = await getImeiLookupBalance(user.id, env);
+    if (balance < 150) {
+      throw new ApiError(409, "INSUFFICIENT_BALANCE", "Your wallet needs at least D150 for an IMEI check.");
+    }
+
+    const ciphertext = await encryptDeviceIdentifier(imei, env);
+    const maskedIdentifier = "•••• •••• " + imei.slice(-4);
+    const orderInsert = env.DB.prepare(
+      "INSERT INTO service_orders (id,user_id,service_key,model_key,device_model,identifier_kind,identifier_ciphertext,identifier_fingerprint,masked_identifier,issue_description,fast_service,amount_due,status,ownership_confirmed,no_signal_confirmed,check_credit_order_id,check_credit_used_at,provider_reference,admin_note,created_at,updated_at,processed_at,completed_at,reviewed_by) VALUES (?,?,'imei_check','iphone_xr','IMEI/TAC lookup','imei',?,?,?,?,0,150,'submitted',1,0,NULL,NULL,NULL,NULL,?,?,NULL,NULL,NULL)"
+    ).bind(requestId, user.id, ciphertext, fingerprint, maskedIdentifier, "HiCellTek TAC lookup · " + tac, now, now);
+    const lookupInsert = env.DB.prepare(
+      "INSERT INTO imei_lookup_requests (request_id,user_id,service_order_id,identifier_fingerprint,tac,status,result_json,error_code,error_message,created_at,updated_at,expires_at) VALUES (?,?,?,?,?,'processing',NULL,NULL,NULL,?,?,?)"
+    ).bind(requestId, user.id, requestId, fingerprint, tac, now, now, now + 120);
+
+    try {
+      await env.DB.batch([orderInsert, lookupInsert]);
+    } catch (error) {
+      const message = String(error && error.message || "");
+      if (message.includes("INSUFFICIENT_BALANCE")) {
+        throw new ApiError(409, "INSUFFICIENT_BALANCE", "Your wallet needs at least D150 for an IMEI check.");
+      }
+      if (message.toLowerCase().includes("unique") || message.toLowerCase().includes("constraint")) {
+        prior = await env.DB.prepare(
+          "SELECT request_id,user_id,service_order_id,identifier_fingerprint,status,result_json,error_code,error_message,created_at,updated_at,expires_at FROM imei_lookup_requests WHERE request_id=? AND user_id=?"
+        ).bind(requestId, user.id).first();
+        if (prior) {
+          if (prior.identifier_fingerprint !== fingerprint) throw new ApiError(409, "LOOKUP_REQUEST_REUSED", "This request ID belongs to a different IMEI. Start a fresh lookup.");
+          const response = await existingImeiLookupResponse(prior, user, env, now, headers);
+          if (response) return response;
+        }
+        throw new ApiError(409, "LOOKUP_IN_PROGRESS", "Another lookup for this IMEI has already been started. Refresh your wallet before trying again.");
+      }
+      throw error;
+    }
+
+    let providerResponse, providerData;
+    try {
+      providerResponse = await fetch("https://imei.hicelltek.com/api/v1/tac/lookup", {
+        method: "POST",
+        headers: {
+          "X-Api-Key": env.HICELLTEK_API_KEY,
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({ query: tac, lang: "en" }),
+        signal: AbortSignal.timeout(15000)
+      });
+      if (!providerResponse.ok) {
+        if (providerResponse.status === 401) throw new ApiError(503, "HICELLTEK_AUTH_FAILED", "HiCellTek rejected the API key. Your D150 has been refunded.");
+        if (providerResponse.status === 429) throw new ApiError(503, "HICELLTEK_QUOTA_EXCEEDED", "HiCellTek's lookup quota or rate limit was reached. Your D150 has been refunded.");
+        if (providerResponse.status === 422) throw new ApiError(502, "HICELLTEK_INVALID_RESPONSE", "HiCellTek rejected the TAC request. Your D150 has been refunded.");
+        throw new ApiError(503, "HICELLTEK_UNAVAILABLE", "HiCellTek is temporarily unavailable. Your D150 has been refunded.");
+      }
+      providerData = await providerResponse.json();
+      if (!providerData || typeof providerData.found !== "boolean") {
+        throw new ApiError(502, "HICELLTEK_INVALID_RESPONSE", "HiCellTek returned an invalid lookup response. Your D150 has been refunded.");
+      }
+    } catch (error) {
+      const code = error instanceof ApiError ? error.code : "HICELLTEK_NETWORK_ERROR";
+      const message = error instanceof ApiError ? error.message : "HiCellTek could not be reached. Your D150 has been refunded.";
+      await failImeiLookup(requestId, user.id, env, Math.floor(Date.now() / 1000), code, message);
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(503, code, message);
+    }
+
+    const brandName = providerData.brand && typeof providerData.brand === "object"
+      ? String(providerData.brand.name || "").slice(0, 100)
+      : String(providerData.brand || "").slice(0, 100);
+    const result = {
+      found: providerData.found === true,
+      tac: /^\d{8}$/.test(String(providerData.tac || "")) ? String(providerData.tac) : tac,
+      brand: brandName,
+      model: String(providerData.model || providerData.marketing_name || "").slice(0, 160),
+      modelInfo: String(providerData.model_info || providerData.modelInfo || "").slice(0, 120),
+      year: providerData.year == null ? "" : String(providerData.year).slice(0, 20),
+      chipset: providerData.chipset == null ? "" : String(providerData.chipset).slice(0, 160)
+    };
+    const deviceModel = result.found
+      ? [result.brand, result.model].filter(Boolean).join(" ").slice(0, 120) || "Device identified by TAC"
+      : "TAC not found in HiCellTek database";
+    const completedAt = Math.floor(Date.now() / 1000);
+    const finalised = await env.DB.batch([
+      env.DB.prepare(
+        "UPDATE service_orders SET device_model=?,status='completed',provider_reference=?,processed_at=?,completed_at=?,updated_at=? WHERE id=? AND user_id=? AND status='submitted'"
+      ).bind(deviceModel, "HiCellTek TAC " + tac, completedAt, completedAt, completedAt, requestId, user.id),
+      env.DB.prepare(
+        "UPDATE imei_lookup_requests SET status='completed',result_json=?,error_code=NULL,error_message=NULL,updated_at=?,expires_at=? WHERE request_id=? AND user_id=? AND status='processing'"
+      ).bind(JSON.stringify(result), completedAt, completedAt + 300, requestId, user.id)
+    ]);
+    if (!finalised[0] || !finalised[0].meta || finalised[0].meta.changes !== 1 ||
+        !finalised[1] || !finalised[1].meta || finalised[1].meta.changes !== 1) {
+      throw new ApiError(409, "LOOKUP_RESERVATION_EXPIRED", "The lookup reservation changed before completion. Refresh your wallet and check its activity before retrying.");
+    }
+
+    const wallet = await getImeiLookupBalance(user.id, env);
+    const orderRow = await env.DB.prepare(
+      "SELECT id,service_key,model_key,device_model,masked_identifier,fast_service,amount_due,status,check_credit_order_id,provider_reference,admin_note,created_at,updated_at FROM service_orders WHERE id=? AND user_id=?"
+    ).bind(requestId, user.id).first();
+    return json({
+      ok: true, alreadyProcessed: false, amountCharged: 150, balance: wallet,
+      result, order: publicWalletOrder(orderRow),
+      message: result.found
+        ? "IMEI lookup completed successfully. D150 was deducted from your wallet."
+        : "The TAC was not found in HiCellTek's database. The lookup completed and D150 was deducted."
+    }, 200, headers);
+  } catch (error) {
+    throwOrReturn(error, headers);
+  }
 }
 
 async function listAdminUsers(request, env, headers) {
@@ -1607,4 +1837,4 @@ function throwOrReturn(error, headers) {
   throw new ApiError(500, "INTERNAL_ERROR", "The request could not be completed.");
 }
 
-export { normalizeIosVersion, compareIosVersions, resolveIosSupportRule, hasLeadingZeroBits };
+export { normalizeIosVersion, compareIosVersions, resolveIosSupportRule, hasLeadingZeroBits, isValidImei };
