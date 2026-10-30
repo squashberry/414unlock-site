@@ -154,7 +154,7 @@ async function getAdminSiteControls(request,env,headers){
 async function saveAdminSiteControls(request,env,headers){
   try{
     const admin=await requireAdmin(request,env),body=await readJson(request),now=Math.floor(Date.now()/1000);
-    const boolKeys=["serviceMode","geoRestriction","signupEnabled","loginEnabled","paymentsEnabled","supportEnabled","newOrdersEnabled""];
+    const boolKeys=["serviceMode","geoRestriction","signupEnabled","loginEnabled","paymentsEnabled","supportEnabled","newOrdersEnabled"];
     const values={};
     for(const k of boolKeys)if(typeof body[k]==="boolean")values[k]=String(body[k]);
     if(typeof body.serviceMessage==="string")values.serviceMessage=body.serviceMessage.trim().slice(0,500)||DEFAULT_SITE_CONTROLS.serviceMessage;
@@ -162,7 +162,7 @@ async function saveAdminSiteControls(request,env,headers){
     if(!Object.keys(values).length)throw new ApiError(400,"NO_CHANGES","Choose at least one setting to update.");
     const stmts=Object.entries(values).map(([k,v])=>env.DB.prepare("INSERT INTO site_controls(control_key,control_value,updated_by,updated_at) VALUES(?,?,?,?) ON CONFLICT(control_key) DO UPDATE SET control_value=excluded.control_value,updated_by=excluded.updated_by,updated_at=excluded.updated_at").bind(k,v,admin.email,now));
     await env.DB.batch(stmts);
-    try{await env.DB.prepare("INSERT INTO admin_audit_log(actor_email,action,created_at) VALUES(?,?,?)").bind(admin.email,"site_controls_updated:"+Object.keys(values).join(","),now).run();}catch(_){}
+    try{await env.DB.prepare("INSERT INTO admin_audit_log(id,actor_email,action,created_at) VALUES(?,?,?,?)").bind(randomHex(16),admin.email,"site_controls_updated:"+Object.keys(values).join(","),now).run();}catch(_){}
     return json({ok:true,controls:await readSiteControls(env),message:"Website controls saved."},200,headers);
   }catch(error){throwOrReturn(error,headers);}
 }
