@@ -20,24 +20,25 @@ export default {
         if (env.DB) {
           try {
             const tableCheck = await env.DB.prepare(
-              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','verification_submissions','payment_sessions','wallets','wallet_transactions','topup_requests','service_orders','ios_support_rules')"
+              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','verification_submissions','payment_sessions','wallets','wallet_transactions','topup_requests','service_orders','ios_support_rules','support_tickets','support_messages')"
             ).all();
             const names = new Set((tableCheck.results || []).map((row) => row.name));
-            databaseReady = ["users","verification_submissions","payment_sessions","wallets","wallet_transactions","topup_requests","service_orders","ios_support_rules"].every((name) => names.has(name));
+            databaseReady = ["users","verification_submissions","payment_sessions","wallets","wallet_transactions","topup_requests","service_orders","ios_support_rules","support_tickets","support_messages"].every((name) => names.has(name));
           } catch (_) {
             databaseReady = false;
           }
         }
-        const storageReady = Boolean(databaseReady && env.DOCUMENTS);
+        const cloudinaryReady = Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET);
+        const storageReady = Boolean(databaseReady && cloudinaryReady);
         const authReady = typeof env.JWT_SECRET === "string" && env.JWT_SECRET.length >= 32;
         const ready = storageReady && authReady;
         return json({
           ok: ready,
           service: "414unlock-api",
-          version: "wallet-device-ios-v1",
+          version: "cloudinary-support-v2",
           checks: {
             database: databaseReady,
-            privateDocuments: Boolean(env.DOCUMENTS),
+            privateDocuments: cloudinaryReady,
             authentication: authReady,
             emailDelivery: Boolean(env.RESEND_API_KEY && env.FROM_EMAIL),
             adminAccess: Boolean(env.ADMIN_EMAILS && env.ADMIN_EMAILS.trim()),
@@ -58,6 +59,14 @@ export default {
       const submitTopupMatch = path.match(/^\/api\/wallet\/topups\/([a-f0-9]{32})\/submit-reference$/i);
       if (request.method === "POST" && submitTopupMatch) return await submitTopupReference(request, env, headers, submitTopupMatch[1]);
       if (request.method === "POST" && path === "/api/orders") return await createServiceOrder(request, env, headers);
+      if (request.method === "GET" && path === "/api/support/tickets") return await listMySupportTickets(request, env, headers);
+      if (request.method === "POST" && path === "/api/support/tickets") return await createSupportTicket(request, env, headers);
+      const supportMessagesMatch = path.match(/^\/api\/support\/tickets\/([a-f0-9]{32})\/messages$/i);
+      if (request.method === "GET" && supportMessagesMatch) return await getSupportTicketMessages(request, env, headers, supportMessagesMatch[1]);
+      if (request.method === "POST" && supportMessagesMatch) return await postSupportTicketMessage(request, env, headers, supportMessagesMatch[1]);
+      if (request.method === "GET" && path === "/api/admin/support/tickets") return await listAdminSupportTickets(request, env, headers);
+      const adminSupportStatusMatch = path.match(/^\/api\/admin\/support\/tickets\/([a-f0-9]{32})\/status$/i);
+      if (request.method === "POST" && adminSupportStatusMatch) return await updateAdminSupportTicketStatus(request, env, headers, adminSupportStatusMatch[1]);
       if (request.method === "GET" && path === "/api/admin/queue") return await adminQueue(request, env, headers);
       if (request.method === "GET" && path === "/api/admin/users") return await listAdminUsers(request, env, headers);
       const adminUserStatusMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/status$/i);
@@ -286,11 +295,65 @@ async function verificationStatus(request, env, headers) {
     return json({ ok: true, status: row.status, submissionId: row.id, submittedAt: row.submitted_at, reviewedAt: row.reviewed_at, note: row.review_note || "" }, 200, headers);
   } catch (error) { throwOrReturn(error, headers); }
 }
+function cloudinaryConfigured(env) { return Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET); }
+async function sha1Hex(value) { return bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-1", encoder.encode(value)))); }
+async function cloudinaryApiSignature(params, secret) {
+  const canonical = Object.keys(params).sort().map((key) => key + "=" + params[key]).join("&");
+  return sha1Hex(canonical + secret);
+}
+function cloudinaryApiBase(env) {
+  if (!cloudinaryConfigured(env)) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "Private document storage is not configured yet.");
+  return "https://api.cloudinary.com/v1_1/" + encodeURIComponent(env.CLOUDINARY_CLOUD_NAME);
+}
+async function uploadCloudinaryDocument(file, documentId, env) {
+  const timestamp = Math.floor(Date.now() / 1000), publicId = "414unlock/verification/" + documentId;
+  const params = { public_id: publicId, timestamp: String(timestamp), type: "authenticated" };
+  const signature = await cloudinaryApiSignature(params, env.CLOUDINARY_API_SECRET), body = new FormData();
+  body.append("file", file, "identity-document"); body.append("public_id", publicId);
+  body.append("timestamp", String(timestamp)); body.append("type", "authenticated");
+  body.append("api_key", env.CLOUDINARY_API_KEY); body.append("signature", signature);
+  const response = await fetch(cloudinaryApiBase(env) + "/raw/upload", { method: "POST", body });
+  let data = {}; try { data = await response.json(); } catch (_) {}
+  if (!response.ok || !data.public_id || !data.version) {
+    console.error("Cloudinary upload failed:", Number(response.status));
+    throw new ApiError(502, "PRIVATE_STORAGE_UPLOAD_FAILED", "Your document could not be stored securely. Please try again later.");
+  }
+  return "cloudinary:" + data.public_id + "|" + String(data.version);
+}
+function parseCloudinaryDocumentKey(value) {
+  if (typeof value !== "string" || !value.startsWith("cloudinary:")) return null;
+  const match = value.slice("cloudinary:".length).match(/^([A-Za-z0-9/_\-.]+)\|(\d+)$/);
+  return match ? { publicId: match[1], version: match[2] } : null;
+}
+async function cloudinaryDocumentUrl(documentKey, env) {
+  const asset = parseCloudinaryDocumentKey(documentKey);
+  if (!asset) throw new ApiError(404, "DOCUMENT_NOT_AVAILABLE", "This document is not available for review.");
+  const deliveryPath = "v" + asset.version + "/" + asset.publicId;
+  const signature = base64url(new Uint8Array(await crypto.subtle.digest("SHA-1", encoder.encode(deliveryPath + env.CLOUDINARY_API_SECRET)))).slice(0, 8);
+  return "https://res.cloudinary.com/" + encodeURIComponent(env.CLOUDINARY_CLOUD_NAME) + "/raw/authenticated/s--" + signature + "--/" + deliveryPath.split("/").map(encodeURIComponent).join("/");
+}
+async function deleteCloudinaryDocument(documentKey, env) {
+  if (!documentKey) return;
+  const asset = parseCloudinaryDocumentKey(documentKey);
+  if (!asset) throw new ApiError(409, "DOCUMENT_REFERENCE_INVALID", "The stored document reference is invalid; the review was not completed.");
+  const timestamp = Math.floor(Date.now() / 1000);
+  const params = { invalidate: "true", public_id: asset.publicId, timestamp: String(timestamp), type: "authenticated" };
+  const signature = await cloudinaryApiSignature(params, env.CLOUDINARY_API_SECRET), body = new FormData();
+  body.append("public_id", asset.publicId); body.append("timestamp", String(timestamp)); body.append("type", "authenticated");
+  body.append("invalidate", "true"); body.append("api_key", env.CLOUDINARY_API_KEY); body.append("signature", signature);
+  const response = await fetch(cloudinaryApiBase(env) + "/raw/destroy", { method: "POST", body });
+  let data = {}; try { data = await response.json(); } catch (_) {}
+  if (!response.ok || (data.result && !["ok", "not found"].includes(String(data.result).toLowerCase()))) {
+    console.error("Cloudinary delete failed:", Number(response.status));
+    throw new ApiError(502, "PRIVATE_STORAGE_DELETE_FAILED", "The stored document could not be deleted securely. The application was not changed.");
+  }
+}
+
 async function submitVerification(request, env, headers) {
   let documentKey = null;
   try {
     const user = await readToken(request, env), type = request.headers.get("Content-Type") || "";
-    if (!env.DOCUMENTS) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "Private document storage is not enabled yet. Please try again later.");
+    if (!cloudinaryConfigured(env)) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "Private document storage is not configured yet.");
     if (!type.toLowerCase().includes("multipart/form-data")) throw new ApiError(415, "MULTIPART_REQUIRED", "Upload the application as a multipart form.");
     const form = await request.formData(), legalName = String(form.get("legalName") || "").trim(), country = String(form.get("country") || "").trim();
     const applicantType = String(form.get("applicantType") || ""), termsAccepted = String(form.get("termsAccepted") || "") === "true";
@@ -302,14 +365,13 @@ async function submitVerification(request, env, headers) {
     const pending = await env.DB.prepare("SELECT id FROM verification_submissions WHERE user_id = ? AND status = 'pending' LIMIT 1").bind(user.id).first();
     if (pending) throw new ApiError(409, "APPLICATION_PENDING", "You already have an application awaiting review.");
     const id = randomHex(16), now = Math.floor(Date.now() / 1000), ext = file.type === "application/pdf" ? "pdf" : file.type === "image/png" ? "png" : "jpg";
-    documentKey = "verification/" + user.id + "/" + id + "." + ext;
-    await env.DOCUMENTS.put(documentKey, file.stream(), { httpMetadata: { contentType: file.type, cacheControl: "private, no-store" }, customMetadata: { userId: user.id, submissionId: id } });
+    documentKey = await uploadCloudinaryDocument(file, id + "." + ext, env);
     const originalName = String(file.name || "document").replace(/[^a-zA-Z0-9._ -]/g, "_").slice(0, 100);
     await env.DB.prepare("INSERT INTO verification_submissions (id,user_id,legal_name,country,applicant_type,document_key,document_name,document_type,status,terms_version,terms_accepted_at,submitted_at) VALUES (?,?,?,?,?,?,?,?, 'pending',?,?,?)")
       .bind(id, user.id, legalName, country, applicantType, documentKey, originalName, file.type, termsVersion, now, now).run();
     return json({ ok: true, status: "pending", submissionId: id, message: "Your application has been submitted for review." }, 201, headers);
   } catch (error) {
-    if (documentKey) { try { await env.DOCUMENTS.delete(documentKey); } catch (_) {} }
+    if (documentKey) { try { await deleteCloudinaryDocument(documentKey, env); } catch (_) {} }
     throwOrReturn(error, headers);
   }
 }
@@ -318,6 +380,88 @@ async function requireAdmin(request, env) {
   if (!allowed.includes(user.email.toLowerCase())) throw new ApiError(403, "ADMIN_REQUIRED", "Administrator access is required.");
   return user;
 }
+function isAdminEmail(email, env) {
+  return (env.ADMIN_EMAILS || "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean).includes(String(email || "").toLowerCase());
+}
+async function listMySupportTickets(request, env, headers) {
+  try {
+    const user = await readToken(request, env);
+    const data = await env.DB.prepare(
+      `SELECT t.id,t.subject,t.status,t.created_at,t.updated_at,
+        (SELECT m.body FROM support_messages m WHERE m.ticket_id=t.id ORDER BY m.created_at DESC LIMIT 1) AS latest_message,
+        (SELECT m.sender_type FROM support_messages m WHERE m.ticket_id=t.id ORDER BY m.created_at DESC LIMIT 1) AS latest_sender
+       FROM support_tickets t WHERE t.user_id=? ORDER BY t.updated_at DESC LIMIT 50`
+    ).bind(user.id).all();
+    return json({ ok:true, tickets:(data.results||[]).map((t)=>({id:t.id,subject:t.subject,status:t.status,createdAt:t.created_at,updatedAt:t.updated_at,latestMessage:t.latest_message||"",latestSender:t.latest_sender||""})) },200,headers);
+  } catch(error){throwOrReturn(error,headers);}
+}
+async function createSupportTicket(request, env, headers) {
+  try {
+    const user=await readToken(request,env),body=await readJson(request);
+    const subject=typeof body.subject==="string"?body.subject.trim().slice(0,120):"";
+    const message=typeof body.message==="string"?body.message.trim().slice(0,4000):"";
+    if(subject.length<3)throw new ApiError(400,"INVALID_SUPPORT_SUBJECT","Enter a subject with at least 3 characters.");
+    if(message.length<2)throw new ApiError(400,"INVALID_SUPPORT_MESSAGE","Enter a message for support.");
+    const now=Math.floor(Date.now()/1000),id=randomHex(16),messageId=randomHex(16);
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO support_tickets (id,user_id,subject,status,created_at,updated_at,last_message_at) VALUES (?,?,?,'open',?,?,?)").bind(id,user.id,subject,now,now,now),
+      env.DB.prepare("INSERT INTO support_messages (id,ticket_id,sender_type,sender_email,body,created_at) VALUES (?,?,'customer',?,?,?)").bind(messageId,id,user.email,message,now)
+    ]);
+    return json({ok:true,ticket:{id,subject,status:"open",createdAt:now,updatedAt:now},message:"Your message has been sent to 414Unlock support."},201,headers);
+  } catch(error){throwOrReturn(error,headers);}
+}
+async function getSupportTicketMessages(request, env, headers, id) {
+  try {
+    const user=await readToken(request,env),admin=isAdminEmail(user.email,env);
+    const ticket=await env.DB.prepare("SELECT id,user_id,subject,status,created_at,updated_at FROM support_tickets WHERE id=?").bind(id).first();
+    if(!ticket||(!admin&&ticket.user_id!==user.id))throw new ApiError(404,"SUPPORT_TICKET_NOT_FOUND","That support conversation could not be found.");
+    const data=await env.DB.prepare("SELECT id,sender_type,sender_email,body,created_at FROM support_messages WHERE ticket_id=? ORDER BY created_at ASC LIMIT 300").bind(id).all();
+    return json({ok:true,ticket:{id:ticket.id,subject:ticket.subject,status:ticket.status,createdAt:ticket.created_at,updatedAt:ticket.updated_at},messages:(data.results||[]).map((m)=>({id:m.id,senderType:m.sender_type,senderEmail:m.sender_email,body:m.body,createdAt:m.created_at}))},200,headers);
+  } catch(error){throwOrReturn(error,headers);}
+}
+async function postSupportTicketMessage(request, env, headers, id) {
+  try {
+    const user=await readToken(request,env),admin=isAdminEmail(user.email,env),body=await readJson(request);
+    const message=typeof body.message==="string"?body.message.trim().slice(0,4000):"";
+    if(message.length<2)throw new ApiError(400,"INVALID_SUPPORT_MESSAGE","Enter a message before sending.");
+    const ticket=await env.DB.prepare("SELECT id,user_id,status FROM support_tickets WHERE id=?").bind(id).first();
+    if(!ticket||(!admin&&ticket.user_id!==user.id))throw new ApiError(404,"SUPPORT_TICKET_NOT_FOUND","That support conversation could not be found.");
+    const now=Math.floor(Date.now()/1000),sender=admin?"admin":"customer";
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO support_messages (id,ticket_id,sender_type,sender_email,body,created_at) VALUES (?,?,?,?,?,?)").bind(randomHex(16),id,sender,user.email,message,now),
+      env.DB.prepare("UPDATE support_tickets SET status=?,updated_at=?,last_message_at=? WHERE id=?").bind(admin?ticket.status:"open",now,now,id)
+    ]);
+    return json({ok:true,message:{senderType:sender,body:message,createdAt:now},messageText:"Message sent."},201,headers);
+  } catch(error){throwOrReturn(error,headers);}
+}
+async function listAdminSupportTickets(request, env, headers) {
+  try {
+    await requireAdmin(request,env);
+    const statusParam=new URL(request.url).searchParams.get("status")||"open";
+    if(!["open","closed","all"].includes(statusParam))throw new ApiError(400,"INVALID_SUPPORT_FILTER","Choose open, closed, or all.");
+    const sql=`SELECT t.id,t.user_id,t.subject,t.status,t.created_at,t.updated_at,u.full_name,u.email,
+      (SELECT m.body FROM support_messages m WHERE m.ticket_id=t.id ORDER BY m.created_at DESC LIMIT 1) AS latest_message,
+      (SELECT m.sender_type FROM support_messages m WHERE m.ticket_id=t.id ORDER BY m.created_at DESC LIMIT 1) AS latest_sender
+      FROM support_tickets t JOIN users u ON u.id=t.user_id
+      WHERE (?='all' OR t.status=?) ORDER BY CASE t.status WHEN 'open' THEN 0 ELSE 1 END,t.updated_at DESC LIMIT 100`;
+    const data=await env.DB.prepare(sql).bind(statusParam,statusParam).all();
+    return json({ok:true,tickets:(data.results||[]).map((t)=>({id:t.id,userId:t.user_id,fullName:t.full_name,email:t.email,subject:t.subject,status:t.status,createdAt:t.created_at,updatedAt:t.updated_at,latestMessage:t.latest_message||"",latestSender:t.latest_sender||""}))},200,headers);
+  } catch(error){throwOrReturn(error,headers);}
+}
+async function updateAdminSupportTicketStatus(request, env, headers, id) {
+  try {
+    const admin=await requireAdmin(request,env),body=await readJson(request),status=String(body.status||"");
+    if(!["open","closed"].includes(status))throw new ApiError(400,"INVALID_SUPPORT_STATUS","Choose open or closed.");
+    const ticket=await env.DB.prepare("SELECT user_id FROM support_tickets WHERE id=?").bind(id).first();
+    if(!ticket)throw new ApiError(404,"SUPPORT_TICKET_NOT_FOUND","That support conversation could not be found.");
+    const now=Math.floor(Date.now()/1000);
+    const result=await env.DB.prepare("UPDATE support_tickets SET status=?,updated_at=? WHERE id=?").bind(status,now,id).run();
+    if(!result.meta||result.meta.changes!==1)throw new ApiError(404,"SUPPORT_TICKET_NOT_FOUND","That support conversation could not be found.");
+    await env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) VALUES (?,?,?,?,?,?)").bind(randomHex(16),admin.email,"support_ticket_"+status,ticket.user_id,"ticket:"+id,now).run();
+    return json({ok:true,status,message:"Support conversation "+status+"."},200,headers);
+  } catch(error){throwOrReturn(error,headers);}
+}
+
 async function listSubmissions(request, env, headers) {
   try {
     await requireAdmin(request, env);
@@ -328,12 +472,13 @@ async function listSubmissions(request, env, headers) {
 async function getSubmissionDocument(request, env, headers, id) {
   try {
     await requireAdmin(request, env);
-    if (!env.DOCUMENTS) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "Private document storage is not enabled yet.");
+    if (!cloudinaryConfigured(env)) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "Private document storage is not configured yet.");
     const row = await env.DB.prepare("SELECT document_key,document_type,status FROM verification_submissions WHERE id = ?").bind(id).first();
     if (!row || !row.document_key || row.status !== "pending") throw new ApiError(404, "DOCUMENT_NOT_AVAILABLE", "This document is not available for review.");
-    const object = await env.DOCUMENTS.get(row.document_key);
-    if (!object) throw new ApiError(404, "DOCUMENT_NOT_AVAILABLE", "This document is no longer available.");
-    return new Response(object.body, { status: 200, headers: { ...headers, "Content-Type": row.document_type, "Content-Disposition": "inline; filename=\"verification-document\"", "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store" } });
+    const secureUrl = await cloudinaryDocumentUrl(row.document_key, env);
+    const upstream = await fetch(secureUrl, { headers: { "Accept": row.document_type } });
+    if (!upstream.ok) throw new ApiError(502, "DOCUMENT_RETRIEVAL_FAILED", "The private document could not be retrieved from storage.");
+    return new Response(upstream.body, { status: 200, headers: { ...headers, "Content-Type": row.document_type, "Content-Disposition": "inline; filename=\"verification-document\"", "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store" } });
   } catch (error) { throwOrReturn(error, headers); }
 }
 async function reviewSubmission(request, env, headers, id) {
@@ -343,12 +488,12 @@ async function reviewSubmission(request, env, headers, id) {
     if (!["approve", "reject"].includes(decision)) throw new ApiError(400, "INVALID_DECISION", "Choose approve or reject.");
     const row = await env.DB.prepare("SELECT id,document_key,status FROM verification_submissions WHERE id = ?").bind(id).first();
     if (!row || row.status !== "pending") throw new ApiError(404, "APPLICATION_NOT_PENDING", "This application is no longer pending.");
-    if (row.document_key && !env.DOCUMENTS) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "Private document storage is not enabled; the application was not changed.");
+    if (row.document_key && !cloudinaryConfigured(env)) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "Private document storage is not configured; the application was not changed.");
+    if (row.document_key) await deleteCloudinaryDocument(row.document_key, env);
     const now = Math.floor(Date.now() / 1000), status = decision === "approve" ? "approved" : "rejected";
     const result = await env.DB.prepare("UPDATE verification_submissions SET status=?,review_note=?,reviewed_at=?,reviewed_by=? WHERE id=? AND status='pending'").bind(status, note, now, admin.email, id).run();
     if (!result.meta || result.meta.changes !== 1) throw new ApiError(409, "REVIEW_CONFLICT", "Another reviewer already handled this application.");
     if (row.document_key) {
-      await env.DOCUMENTS.delete(row.document_key);
       await env.DB.prepare("UPDATE verification_submissions SET document_key=NULL WHERE id=?").bind(id).run();
     }
     return json({ ok: true, status, message: "Application " + status + ". Uploaded document deleted after review." }, 200, headers);
