@@ -10,7 +10,7 @@ Public website and verification UI for 414Unlock. This repository is public beca
 
 ## Important status
 
-This repository contains the public front end and API client contract. Authentication, email delivery, document upload, approval/rejection, and app handoff will **not work until the Cloudflare Worker API is implemented/deployed and configured**. The site intentionally fails closed when \`API_BASE_URL\` is empty.
+This repository contains the public front end and API client contract. Authentication, document upload, approval/rejection, and app handoff require the configured Cloudflare Worker API. The site intentionally fails closed when \`API_BASE_URL\` is empty.
 
 ## GitHub Pages
 
@@ -25,7 +25,8 @@ window.UNLOCK414_CONFIG = Object.freeze({
   API_BASE_URL: "https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev",
   DOWNLOAD_URL: "https://github.com/squashberry/414unlock-site/releases/latest",
   APP_CALLBACK: "414unlock://auth/callback",
-  TERMS_VERSION: "2026-10-21"
+  TERMS_VERSION: "2026-10-30",
+  SUPPORT_EMAIL: "414unlock@gmail.com"
 });
 \`\`\`
 
@@ -46,9 +47,9 @@ The desktop app should redeem the one-time code through a dedicated API endpoint
 
 ## Cloudflare backend setup
 
-The API requires a server-side service, database, and private object storage. GitHub Pages cannot securely store passwords, authenticate users, or protect identity documents on its own. Configure a Cloudflare Worker with D1 for account/verification metadata and private R2 storage for documents; use a verified email provider for email codes. Keep all secrets as Worker secrets, never in this repo. Admin access must be decided by the Worker from trusted configuration, not by a field submitted by the browser.
+The API requires a server-side service, database, and private object storage. GitHub Pages cannot securely store passwords, authenticate users, or protect identity documents on its own. Configure a Cloudflare Worker with D1 for account/verification metadata and private Cloudinary storage for documents. No outbound email provider is required for authentication. Keep all secrets as Worker secrets, never in this repo. Admin access must be decided by the Worker from trusted configuration, not by a field submitted by the browser.
 
-Before real users can submit documents, implement rate limits, password hashing, email verification, upload size/type validation, private storage, short-lived sessions, CSRF/CORS protection, audit logs that do not contain document data, retention/deletion procedures, and a manual fallback for uncertain AI document matching.
+Before real users can submit documents, keep rate limits, password hashing, browser challenge replay protection, upload size/type validation, private storage, short-lived sessions, CSRF/CORS protection, one-way security event fingerprints, retention/deletion procedures, and a manual fallback for uncertain AI document matching.
 
 ## Desktop integration
 
