@@ -1,0 +1,88 @@
+name: 414Unlock backend checks
+
+on:
+  push:
+    paths:
+      - "worker/**"
+      - "admin.html"
+      - "admin.js"
+      - ".github/workflows/worker-tests.yml"
+  pull_request:
+    paths:
+      - "worker/**"
+      - "admin.html"
+      - "admin.js"
+      - ".github/workflows/worker-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Worker, admin code, policy tests, and migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check worker/src/index.js
+          node --check admin.js
+
+      - name: Run iOS policy unit tests
+        run: node --test worker/tests/ios-policy.test.mjs
+
+      - name: Apply all SQL migrations in an in-memory SQLite database
+        run: |
+          python3 - <<'PY'
+          import glob
+          import sqlite3
+
+          db = sqlite3.connect(":memory:")
+          db.execute("PRAGMA foreign_keys = ON")
+          paths = sorted(glob.glob("worker/migrations/*.sql"))
+          if not paths:
+              raise SystemExit("No migration files found")
+          for path in paths:
+              with open(path, "r", encoding="utf-8") as file:
+                  db.executescript(file.read())
+
+          required = {
+              "users", "verification_submissions", "payment_sessions",
+              "wallets", "wallet_transactions", "topup_requests",
+              "service_orders", "ios_support_rules"
+          }
+          present = {row[0] for row in db.execute(
+              "SELECT name FROM sqlite_master WHERE type='table'"
+          )}
+          missing = required - present
+          if missing:
+              raise SystemExit("Missing tables after migrations: " + ", ".join(sorted(missing)))
+
+          db.execute(
+              "INSERT INTO ios_support_rules "
+              "(id,match_type,version,min_version,max_version,enabled,note,created_at,updated_at,updated_by) "
+              "VALUES (?,?,?,?,?,?,?,?,?,?)",
+              ("a" * 32, "exact", "18.7", None, None, 0, "", 1, 1, "admin@example.test")
+          )
+          try:
+              db.execute(
+                  "INSERT INTO ios_support_rules "
+                  "(id,match_type,version,min_version,max_version,enabled,note,created_at,updated_at,updated_by) "
+                  "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                  ("b" * 32, "exact", None, "18.0", "19.0", 1, "", 1, 1, "admin@example.test")
+              )
+          except sqlite3.IntegrityError:
+              pass
+          else:
+              raise SystemExit("The iOS rule table accepted an invalid exact-rule shape")
+
+          print("All SQL migrations applied; required tables and iOS rule constraints passed.")
+          PY

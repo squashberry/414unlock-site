@@ -20,10 +20,10 @@ export default {
         if (env.DB) {
           try {
             const tableCheck = await env.DB.prepare(
-              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','verification_submissions','payment_sessions','wallets','wallet_transactions','topup_requests','service_orders')"
+              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','verification_submissions','payment_sessions','wallets','wallet_transactions','topup_requests','service_orders','ios_support_rules')"
             ).all();
             const names = new Set((tableCheck.results || []).map((row) => row.name));
-            databaseReady = ["users","verification_submissions","payment_sessions","wallets","wallet_transactions","topup_requests","service_orders"].every((name) => names.has(name));
+            databaseReady = ["users","verification_submissions","payment_sessions","wallets","wallet_transactions","topup_requests","service_orders","ios_support_rules"].every((name) => names.has(name));
           } catch (_) {
             databaseReady = false;
           }
@@ -34,7 +34,7 @@ export default {
         return json({
           ok: ready,
           service: "414unlock-api",
-          version: "wallet-v1",
+          version: "wallet-device-ios-v1",
           checks: {
             database: databaseReady,
             privateDocuments: Boolean(env.DOCUMENTS),
@@ -66,6 +66,10 @@ export default {
       if (request.method === "POST" && path === "/api/payments/session") return await createPaymentSession(request, env, headers);
       if (request.method === "GET" && path === "/api/payments/session") return await getPaymentSession(request, env, headers, new URL(request.url));
       if (request.method === "GET" && path === "/api/payments/status") return await getPaymentStatus(request, env, headers, new URL(request.url));
+      if (request.method === "GET" && path === "/api/payments/check-device") return await checkDevicePayment(request, env, headers, new URL(request.url));
+      if (request.method === "GET" && path === "/api/compatibility/ios") return await checkIosCompatibility(env, headers, new URL(request.url));
+      if (request.method === "GET" && path === "/api/admin/ios-support/rules") return await listIosSupportRules(request, env, headers);
+      if (request.method === "POST" && path === "/api/admin/ios-support/rules") return await saveIosSupportRule(request, env, headers);
       if (request.method === "POST" && path === "/api/payments/validate-device") return await validatePaymentDevice(request, env, headers);
       if (request.method === "POST" && path === "/api/payments/verify-code") return await verifyPaymentCode(request, env, headers);
       if (request.method === "GET" && path === "/api/verification/status") return await verificationStatus(request, env, headers);
@@ -801,8 +805,244 @@ async function verifyPaymentCode(request, env, headers) {
   } catch (error) { throwOrReturn(error, headers); }
 }
 
+
+
+async function checkDevicePayment(request, env, headers, url) {
+  try {
+    const user = await readToken(request, env);
+    const identifierKind = String(url.searchParams.get("identifierKind") || "").trim().toLowerCase();
+    const rawIdentifier = String(url.searchParams.get("identifier") || "").trim();
+    const identifier = rawIdentifier.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    if (!["serial", "imei", "udid"].includes(identifierKind)) {
+      throw new ApiError(400, "INVALID_IDENTIFIER_KIND", "Supply a supported serial, IMEI, or UDID identifier type.");
+    }
+    if (identifierKind === "imei" && !/^\d{14,16}$/.test(identifier)) {
+      throw new ApiError(400, "INVALID_DEVICE_IDENTIFIER", "The detected IMEI format is invalid.");
+    }
+    if (identifierKind === "serial" && !/^[A-Z0-9]{6,64}$/.test(identifier)) {
+      throw new ApiError(400, "INVALID_DEVICE_IDENTIFIER", "The detected serial number format is invalid.");
+    }
+    if (identifierKind === "udid" && !/^[A-Z0-9]{20,64}$/.test(identifier)) {
+      throw new ApiError(400, "INVALID_DEVICE_IDENTIFIER", "The detected UDID format is invalid.");
+    }
+
+    const fingerprint = await keyedHash("device:" + identifierKind + ":" + identifier, env);
+    const binding = env.DB.prepare(
+      "SELECT id,status,created_at FROM payment_sessions WHERE user_id=? AND identifier_kind=? AND identifier_fingerprint=? ORDER BY created_at DESC LIMIT 1"
+    ).bind(user.id, identifierKind, fingerprint);
+    const verifiedQuery = env.DB.prepare(
+      "SELECT id,status,paid_at,device_model FROM payment_sessions WHERE user_id=? AND identifier_kind=? AND identifier_fingerprint=? AND status='verified' ORDER BY paid_at DESC LIMIT 1"
+    ).bind(user.id, identifierKind, fingerprint);
+    const [latest, verified] = await Promise.all([binding.first(), verifiedQuery.first()]);
+    const paid = Boolean(verified);
+    const deviceRegistered = Boolean(latest);
+    return json({
+      ok: true,
+      paid,
+      deviceRegistered,
+      canRetry: paid,
+      status: paid ? "verified" : (latest ? latest.status : "not_found"),
+      message: paid
+        ? "A verified payment exists for this device on your account. You can retry without paying again."
+        : (latest
+          ? "This device has a payment session, but no verified payment was found. Complete payment before retrying."
+          : "No verified payment was found for this device on your account.")
+    }, 200, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+function normalizeIosVersion(value) {
+  if (typeof value !== "string") return null;
+  const input = value.trim();
+  if (!/^\d{1,3}(?:\.\d{1,3}){1,3}$/.test(input)) return null;
+  const parts = input.split(".").map((part) => Number(part));
+  if (parts.some((part) => !Number.isInteger(part) || part < 0 || part > 999)) return null;
+  return parts.map(String).join(".");
+}
+
+function iosVersionParts(value) {
+  return value.split(".").map((part) => Number(part));
+}
+
+function compareIosVersions(left, right) {
+  const a = iosVersionParts(left), b = iosVersionParts(right);
+  const length = Math.max(a.length, b.length);
+  for (let i = 0; i < length; i++) {
+    const av = a[i] || 0, bv = b[i] || 0;
+    if (av < bv) return -1;
+    if (av > bv) return 1;
+  }
+  return 0;
+}
+
+function iosVersionScore(value) {
+  const parts = iosVersionParts(value);
+  while (parts.length < 4) parts.push(0);
+  return (((parts[0] * 1000) + parts[1]) * 1000 + parts[2]) * 1000 + parts[3];
+}
+
+function publicIosSupportRule(row) {
+  return {
+    id: row.id,
+    matchType: row.match_type,
+    version: row.version || "",
+    minVersion: row.min_version || "",
+    maxVersion: row.max_version || "",
+    enabled: Boolean(row.enabled),
+    note: row.note || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    updatedBy: row.updated_by || ""
+  };
+}
+
+function resolveIosSupportRule(rows, version) {
+  const exact = rows.filter((row) =>
+    row.match_type === "exact" && compareIosVersions(row.version, version) === 0
+  );
+  if (exact.length) {
+    exact.sort((a, b) => Number(b.updated_at || 0) - Number(a.updated_at || 0));
+    return exact[0];
+  }
+
+  const ranges = rows.filter((row) =>
+    row.match_type === "range" &&
+    compareIosVersions(version, row.min_version) >= 0 &&
+    compareIosVersions(version, row.max_version) <= 0
+  );
+  ranges.sort((a, b) => {
+    const widthA = iosVersionScore(a.max_version) - iosVersionScore(a.min_version);
+    const widthB = iosVersionScore(b.max_version) - iosVersionScore(b.min_version);
+    if (widthA !== widthB) return widthA - widthB;
+    if (Boolean(a.enabled) !== Boolean(b.enabled)) return Number(Boolean(a.enabled)) - Number(Boolean(b.enabled));
+    return Number(b.updated_at || 0) - Number(a.updated_at || 0);
+  });
+  return ranges[0] || null;
+}
+
+async function checkIosCompatibility(env, headers, url) {
+  try {
+    const rawVersion = url.searchParams.get("iosVersion") || url.searchParams.get("version") || "";
+    const version = normalizeIosVersion(rawVersion);
+    if (!version) throw new ApiError(400, "INVALID_IOS_VERSION", "Supply a valid iOS version such as 18.7 or 18.7.1.");
+    const result = await env.DB.prepare(
+      "SELECT id,match_type,version,min_version,max_version,enabled,note,created_at,updated_at,updated_by FROM ios_support_rules ORDER BY updated_at DESC LIMIT 500"
+    ).all();
+    const rule = resolveIosSupportRule(result.results || [], version);
+    const allowed = Boolean(rule && rule.enabled);
+    return json({
+      ok: true,
+      iosVersion: version,
+      allowed,
+      supported: allowed,
+      matched: Boolean(rule),
+      rule: rule ? {
+        id: rule.id,
+        matchType: rule.match_type,
+        version: rule.version || "",
+        minVersion: rule.min_version || "",
+        maxVersion: rule.max_version || "",
+      } : null,
+      code: allowed ? "IOS_VERSION_ALLOWED" : "IOS_VERSION_UNSUPPORTED",
+      message: allowed ? "This iOS version is enabled by 414Unlock." : "This phone's iOS version isn't supported."
+    }, 200, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+async function listIosSupportRules(request, env, headers) {
+  try {
+    const admin = await requireAdmin(request, env);
+    const result = await env.DB.prepare(
+      "SELECT id,match_type,version,min_version,max_version,enabled,note,created_at,updated_at,updated_by FROM ios_support_rules ORDER BY updated_at DESC,created_at DESC LIMIT 500"
+    ).all();
+    return json({
+      ok: true,
+      adminEmail: admin.email,
+      rules: (result.results || []).map(publicIosSupportRule)
+    }, 200, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+async function saveIosSupportRule(request, env, headers) {
+  try {
+    const admin = await requireAdmin(request, env);
+    const body = await readJson(request);
+    let id = typeof body.id === "string" ? body.id.trim().toLowerCase() : "";
+    if (id && !/^[a-f0-9]{32}$/.test(id)) {
+      throw new ApiError(400, "INVALID_RULE_ID", "The iOS support rule identifier is invalid.");
+    }
+    if (!id) id = randomHex(16);
+
+    const matchType = typeof body.matchType === "string" ? body.matchType.trim().toLowerCase() : "";
+    if (!["exact", "range"].includes(matchType)) {
+      throw new ApiError(400, "INVALID_MATCH_TYPE", "Choose an exact iOS version or a version range.");
+    }
+    if (typeof body.enabled !== "boolean") {
+      throw new ApiError(400, "INVALID_ENABLED_STATE", "Choose whether this version or range is allowed.");
+    }
+    const note = typeof body.note === "string" ? body.note.trim().slice(0, 250) : "";
+    let version = null, minVersion = null, maxVersion = null;
+    if (matchType === "exact") {
+      version = normalizeIosVersion(String(body.version || ""));
+      if (!version) throw new ApiError(400, "INVALID_IOS_VERSION", "Enter an exact version such as 18.7 or 18.7.1.");
+    } else {
+      minVersion = normalizeIosVersion(String(body.minVersion || ""));
+      maxVersion = normalizeIosVersion(String(body.maxVersion || ""));
+      if (!minVersion || !maxVersion) {
+        throw new ApiError(400, "INVALID_IOS_RANGE", "Enter both the first and last iOS version in the range.");
+      }
+      if (compareIosVersions(minVersion, maxVersion) > 0) {
+        throw new ApiError(400, "INVALID_IOS_RANGE", "The start version must be less than or equal to the end version.");
+      }
+    }
+
+    const existing = await env.DB.prepare(
+      "SELECT id FROM ios_support_rules WHERE id=?"
+    ).bind(id).first();
+    if (existing) {
+      // Existing rules may be edited in place but not silently replaced by a different record.
+    } else if (body.id) {
+      throw new ApiError(404, "IOS_RULE_NOT_FOUND", "That iOS support rule no longer exists. Refresh the page and try again.");
+    }
+
+    const otherResult = await env.DB.prepare(
+      "SELECT id,match_type,version,min_version,max_version FROM ios_support_rules WHERE id<>?"
+    ).bind(id).all();
+    for (const other of (otherResult.results || [])) {
+      if (other.match_type !== matchType) continue;
+      const duplicate = matchType === "exact"
+        ? compareIosVersions(other.version, version) === 0
+        : compareIosVersions(other.min_version, minVersion) === 0 && compareIosVersions(other.max_version, maxVersion) === 0;
+      if (duplicate) {
+        throw new ApiError(409, "IOS_RULE_ALREADY_EXISTS", "A rule for that exact version or range already exists. Edit its existing rule instead.");
+      }
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    if (existing) {
+      await env.DB.prepare(
+        "UPDATE ios_support_rules SET match_type=?,version=?,min_version=?,max_version=?,enabled=?,note=?,updated_at=?,updated_by=? WHERE id=?"
+      ).bind(matchType, version, minVersion, maxVersion, body.enabled ? 1 : 0, note, now, admin.email, id).run();
+    } else {
+      await env.DB.prepare(
+        "INSERT INTO ios_support_rules (id,match_type,version,min_version,max_version,enabled,note,created_at,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)"
+      ).bind(id, matchType, version, minVersion, maxVersion, body.enabled ? 1 : 0, note, now, now, admin.email).run();
+    }
+    const saved = await env.DB.prepare(
+      "SELECT id,match_type,version,min_version,max_version,enabled,note,created_at,updated_at,updated_by FROM ios_support_rules WHERE id=?"
+    ).bind(id).first();
+    return json({
+      ok: true,
+      rule: publicIosSupportRule(saved),
+      message: "iOS support rule saved. The desktop app will use the current server policy at its next check."
+    }, existing ? 200 : 201, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
 function throwOrReturn(error, headers) {
   if (error instanceof ApiError) throw error;
   if (error instanceof Error) throw error;
   throw new ApiError(500, "INTERNAL_ERROR", "The request could not be completed.");
 }
+
+export { normalizeIosVersion, compareIosVersions, resolveIosSupportRule };
