@@ -27,8 +27,6 @@ jobs:
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-      FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
       CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
       CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
       CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
@@ -53,8 +51,6 @@ jobs:
           missing=()
           [[ -z "$CLOUDFLARE_ACCOUNT_ID" ]] && missing+=("CLOUDFLARE_ACCOUNT_ID")
           [[ -z "$CLOUDFLARE_API_TOKEN" ]] && missing+=("CLOUDFLARE_API_TOKEN")
-          [[ -z "$RESEND_API_KEY" ]] && missing+=("RESEND_API_KEY")
-          [[ -z "$FROM_EMAIL" ]] && missing+=("FROM_EMAIL")
           [[ -z "$CLOUDINARY_CLOUD_NAME" ]] && missing+=("CLOUDINARY_CLOUD_NAME")
           [[ -z "$CLOUDINARY_API_KEY" ]] && missing+=("CLOUDINARY_API_KEY")
           [[ -z "$CLOUDINARY_API_SECRET" ]] && missing+=("CLOUDINARY_API_SECRET")
@@ -194,8 +190,6 @@ jobs:
           if ! has_secret DEVICE_DATA_ENCRYPTION_KEY; then
             openssl rand -hex 32 | wrangler secret put DEVICE_DATA_ENCRYPTION_KEY --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
           fi
-          printf '%s' "$RESEND_API_KEY" | wrangler secret put RESEND_API_KEY --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
-          printf '%s' "$FROM_EMAIL" | wrangler secret put FROM_EMAIL --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
           printf '%s' "$CLOUDINARY_CLOUD_NAME" | wrangler secret put CLOUDINARY_CLOUD_NAME --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
           printf '%s' "$CLOUDINARY_API_KEY" | wrangler secret put CLOUDINARY_API_KEY --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
           printf '%s' "$CLOUDINARY_API_SECRET" | wrangler secret put CLOUDINARY_API_SECRET --name "$WORKER_NAME" --config worker/wrangler.deploy.toml
@@ -215,7 +209,7 @@ jobs:
           const fs = require('node:fs');
           const path = process.argv[2];
           const d = JSON.parse(fs.readFileSync(path, 'utf8'));
-          const required = ['database','privateDocuments','authentication','emailDelivery','adminAccess','deviceEncryption'];
+          const required = ['database','browserSecurity','privateDocuments','authentication','adminAccess','deviceEncryption'];
           const missing = required.filter(k => !d.checks || d.checks[k] !== true);
           if (d.ok !== true || missing.length) {
             console.error('API health checks incomplete:', missing.join(', ') || 'ok=false');
