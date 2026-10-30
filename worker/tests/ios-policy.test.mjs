@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   normalizeIosVersion,
   compareIosVersions,
-  resolveIosSupportRule
+  resolveIosSupportRule,
+  isValidImei
 } from "../src/index.js";
 
 test("normalizes numeric dotted iOS versions and rejects malformed values", () => {
@@ -94,4 +95,12 @@ test("a disabled range wins when two matching ranges have equal width", () => {
 
 test("an unlisted version has no matching rule and must be blocked by the API", () => {
   assert.equal(resolveIosSupportRule([], "18.7"), null);
+});
+
+test("validates 15-digit IMEIs with the Luhn check digit", () => {
+  assert.equal(isValidImei("490154203237518"), true);
+  assert.equal(isValidImei("356938035643809"), true);
+  assert.equal(isValidImei("490154203237519"), false);
+  assert.equal(isValidImei("49015420323751"), false);
+  assert.equal(isValidImei("49015420323751A"), false);
 });
