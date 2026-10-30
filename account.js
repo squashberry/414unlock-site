@@ -3,6 +3,14 @@
   var cfg=window.UNLOCK414_CONFIG||{},api=(cfg.API_BASE_URL||"").replace(/\/+$/,""),session=window.UNLOCK414_SESSION||null;
   var params=new URLSearchParams(location.search),mode=params.get("flow")==="signup"?"signup":"signin";
   var returnTarget=params.get("return")||"",returnToApp=returnTarget==="app",paymentLaunch=params.get("launch")||"",appState=params.get("state")||"",appCallback=params.get("callback")||"";
+  var emailInput=document.getElementById("email"),emailHint=document.getElementById("email-hint"),clearSavedEmail=document.getElementById("clear-saved-email"),savedEmailKey="414unlock_last_email";
+  function readSavedEmail(){try{return (localStorage.getItem(savedEmailKey)||"").trim();}catch(_){return "";}}
+  function saveEmail(value){var clean=String(value||"").trim().toLowerCase();if(!clean||clean.length>254||clean.indexOf("@")<1)return;try{localStorage.setItem(savedEmailKey,clean);}catch(_){}refreshSavedEmailHint();}
+  function refreshSavedEmailHint(){var saved=readSavedEmail();if(clearSavedEmail)clearSavedEmail.hidden=!saved;if(emailHint)emailHint.textContent=saved&&emailInput.value.trim().toLowerCase()===saved?"Your last-used email is filled in. You can change it any time. Your password is never stored by 414Unlock.":"Your email can be remembered on this device after you submit. Your password is never stored by 414Unlock.";}
+  if(!emailInput.value){var remembered=readSavedEmail();if(remembered)emailInput.value=remembered;}
+  refreshSavedEmailHint();
+  if(clearSavedEmail)clearSavedEmail.addEventListener("click",function(){try{localStorage.removeItem(savedEmailKey);}catch(_){}refreshSavedEmailHint();emailInput.focus();});
+  emailInput.addEventListener("input",refreshSavedEmailHint);
   var form=document.getElementById("auth-form"),nameWrap=document.getElementById("name-wrap"),message=document.getElementById("message"),submit=document.getElementById("submit-button"),tabs=[document.getElementById("tab-signin"),document.getElementById("tab-signup")],heading=document.getElementById("heading"),intro=document.getElementById("intro"),passwordHint=document.getElementById("password-hint"),passwordInput=document.getElementById("password"),authView=document.getElementById("auth-view"),browserView=document.getElementById("browser-check-view"),browserStatus=document.getElementById("browser-check-status");
   function showMessage(text,type){message.textContent=text;message.className="message show "+(type||"info");}
   function setBusy(b){submit.disabled=b;submit.style.opacity=b?".65":"1";}
@@ -35,7 +43,7 @@
     return {challengeId:challenge.challengeId,nonce:nonce,counter:counter,proof:proof,signals:{webCrypto:true,webdriver:navigator.webdriver===true,languages:languages}};
   }
   function changeMode(newMode){
-    mode=newMode;nameWrap.classList.toggle("hidden",mode!=="signup");tabs[0].classList.toggle("active",mode==="signin");tabs[1].classList.toggle("active",mode==="signup");
+    mode=newMode;nameWrap.classList.toggle("hidden",mode!=="signup");emailInput.autocomplete=mode==="signin"?"username":"email";tabs[0].classList.toggle("active",mode==="signin");tabs[1].classList.toggle("active",mode==="signup");
     heading.textContent=mode==="signin"?"Welcome back.":"Create your account.";
     intro.textContent=mode==="signin"?"Sign in securely. Squashberry checks the browser session every time you authenticate.":"Create your account directly. Your browser session is checked before the account is activated.";
     submit.innerHTML=(mode==="signin"?"Sign in":"Create account")+' <span>→</span>';
@@ -74,7 +82,8 @@
   }
   form.addEventListener("submit",async function(event){
     event.preventDefault();message.className="message";if(!configured())return;setBusy(true);
-    var email=document.getElementById("email").value.trim().toLowerCase(),password=passwordInput.value;
+    var email=emailInput.value.trim().toLowerCase(),password=passwordInput.value;
+    if(emailInput.validity.valid)saveEmail(email);
     try{
       if(mode==="signup"){
         var fullName=document.getElementById("fullName").value.trim();
