@@ -19,7 +19,7 @@ export default {
         if (env.DB) {
           try {
             const tableCheck = await env.DB.prepare(
-              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','verification_submissions','payment_sessions','wallets','wallet_transactions','topup_requests','service_orders','ios_support_rules','support_tickets','support_messages','admin_bootstrap_tokens')"
+              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','verification_submissions','payment_sessions','wallets','wallet_transactions','topup_requests','service_orders','ios_support_rules','support_tickets','support_messages','admin_bootstrap_tokens','auth_browser_challenges','auth_security_events')"
             ).all();
             const names = new Set((tableCheck.results || []).map((row) => row.name));
             databaseReady = ["users","verification_submissions","payment_sessions","wallets","wallet_transactions","topup_requests","service_orders","ios_support_rules","support_tickets","support_messages","admin_bootstrap_tokens"].every((name) => names.has(name));
