@@ -1,6 +1,6 @@
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-const PASSWORD_ITERATIONS = 310000;
+const PASSWORD_ITERATIONS = 100000; // Cloudflare Workers rejects PBKDF2 deriveBits counts above 100,000.
 const TOKEN_TTL_SECONDS = 3600;
 const APP_CODE_TTL_SECONDS = 120;
 const MAX_DOCUMENT_BYTES = 7 * 1024 * 1024;
@@ -282,7 +282,7 @@ async function enforceLoginRateLimit(env,identity,email) {
 }
 async function createPasswordHash(password, saltHex) {
   // Cloudflare Workers expects an algorithm object for PBKDF2 key import.
-  // Keep the existing iteration count and SHA-256 output so hashes remain compatible.
+  // Stay within the Workers runtime ceiling while retaining PBKDF2-SHA-256 and the 256-bit output format.
   const key = await crypto.subtle.importKey(
     "raw",
     encoder.encode(password),
