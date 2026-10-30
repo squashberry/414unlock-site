@@ -88,8 +88,6 @@ The backend source is committed, but this repository does not contain Cloudflare
 1. In GitHub, open **Settings → Secrets and variables → Actions → Secrets** and add:
    - `CLOUDFLARE_API_TOKEN` — a Cloudflare API token scoped to the intended account, with Workers Scripts Edit, D1 Edit, Cloudinary credentials stored as Worker secrets, and the account permissions required to inspect the Workers.dev hostname.
    - `CLOUDFLARE_ACCOUNT_ID` — the 32-character account ID for the exact account you want to use.
-   - `RESEND_API_KEY` — your Resend API key.
-   - `FROM_EMAIL` — a sender identity verified with Resend.
 2. Under **Settings → Secrets and variables → Actions → Variables**, add `SQUASHBERRYPAY_TOPUP_URL`. This must be the official **custom-amount** SquashberryPay checkout link you created in the SquashberryPay merchant dashboard. A fixed-price product link cannot collect arbitrary wallet top-up amounts. The checkout URL is public configuration, so do not put secrets in it.
 3. Open **Actions → Deploy 414Unlock backend → Run workflow**. Enter the email address that should have administrator access. Use the Workers.dev account subdomain shown in Cloudflare; the default input is `squashberrypay`.
 4. The workflow checks its required settings before infrastructure changes, reuses the named D1 database if it exists, creates it only if missing, applies all tracked migrations, deploys the Worker, preserves existing JWT and device-encryption secrets (generating them only when absent), configures Cloudinary secrets and administrator access, then checks `/api/health` including browser-security readiness. Only after a successful health check does it write the API URL into `site-config.js`.
