@@ -71,6 +71,16 @@
  <div class="order-list compact" id="home-orders"><div class="loading-line">Loading orders…</div></div>
 </section>
 
+<section class="app-view" id="view-services" hidden>
+ <div class="section-heading"><div><p class="eyebrow">414UNLOCK SERVICES</p><h2>Choose a service</h2></div></div>
+ <p class="muted-copy">Start a new device request or return to the order tracker for updates.</p>
+ <div class="service-options">
+  <a class="service-option" href="./dashboard.html?service=unlock#new-order"><span class="service-option-icon">🔐</span><span><strong>Request Unlock</strong><small>Submit a new device for service</small></span><b>›</b></a>
+  <a class="service-option" href="./dashboard.html?service=imei_check#new-order"><span class="service-option-icon">▦</span><span><strong>Check IMEI</strong><small>Run a device health check</small></span><b>›</b></a>
+  <button class="service-option" type="button" data-view="orders"><span class="service-option-icon">↗</span><span><strong>Track an Order</strong><small>View your device service progress</small></span><b>›</b></button>
+ </div>
+</section>
+
 <section class="app-view" id="view-orders" hidden>
  <div class="section-heading"><div><p class="eyebrow">DEVICE TRACKING</p><h2>Your Orders</h2></div><span class="count-pill" id="all-order-count">0</span></div>
  <p class="muted-copy">Track the latest status of each device submitted to 414Unlock.</p>
@@ -110,8 +120,9 @@
 
 <nav class="bottom-nav" aria-label="Mobile app navigation">
  <button class="nav-item active" type="button" data-view="home"><span>⌂</span><small>Home</small></button>
- <button class="nav-item" type="button" data-view="orders"><span>▣</span><small>Orders</small></button>
+ <button class="nav-item" type="button" data-view="services"><span>⚒</span><small>Services</small></button>
  <button class="nav-item" type="button" data-view="activity"><span>↗</span><small>Activity</small></button>
+ <a class="nav-item" href="./support.html"><span>◌</span><small>Chat</small></a>
  <button class="nav-item" type="button" data-view="profile"><span>◉</span><small>Profile</small></button>
 </nav>
 </div>
