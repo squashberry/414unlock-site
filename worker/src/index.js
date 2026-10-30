@@ -1348,14 +1348,17 @@ async function bootstrapFirstAdmin(request,env,headers){
     await verifyBrowserChallenge(request,env,body,"admin_bootstrap");
     if(!validEmail(email)||!isAdminEmail(email,env))throw new ApiError(403,"ADMIN_BOOTSTRAP_EMAIL","Use the administrator email configured for this service.");
     if(fullName.length<2||fullName.length>120||password.length<12||password.length>128||!/^[a-f0-9]{64}$/i.test(token))throw new ApiError(400,"INVALID_BOOTSTRAP_DETAILS","Enter your name, the private setup token, and a password of at least 12 characters.");
-    const userCount=await env.DB.prepare("SELECT COUNT(*) AS count FROM users").first();
-    if(Number(userCount&&userCount.count)!==0)throw new ApiError(409,"ADMIN_ALREADY_INITIALISED","The initial administrator has already been created. Sign in instead.");
+    const configuredAdmins=(env.ADMIN_EMAILS||"").split(",").map((value)=>value.trim().toLowerCase()).filter(Boolean);
+    if(!configuredAdmins.length)throw new ApiError(503,"ADMIN_NOT_CONFIGURED","No administrator email is configured for this service.");
+    const marks=configuredAdmins.map(()=>"?").join(",");
+    const existingAdmin=await env.DB.prepare("SELECT id FROM users WHERE lower(email) IN ("+marks+") LIMIT 1").bind(...configuredAdmins).first();
+    if(existingAdmin)throw new ApiError(409,"ADMIN_ALREADY_INITIALISED","The configured administrator account already exists. Sign in instead.");
     const tokenHash=await sha256Hex("414unlock-admin-bootstrap:"+token),now=Math.floor(Date.now()/1000);
     const bootstrap=await env.DB.prepare("SELECT id FROM admin_bootstrap_tokens WHERE token_hash=? AND used_at IS NULL AND expires_at>?").bind(tokenHash,now).first();
     if(!bootstrap)throw new ApiError(403,"INVALID_BOOTSTRAP_TOKEN","The private setup link is invalid or expired. Request a new setup link.");
     const id=randomHex(16),salt=randomHex(16),passwordHash=await createPasswordHash(password,salt);
     const results=await env.DB.batch([
-      env.DB.prepare("INSERT INTO users (id,full_name,email,password_salt,password_hash,email_verified,created_at,account_active) SELECT ?,?,?,?,?,1,?,1 WHERE NOT EXISTS(SELECT 1 FROM users) AND EXISTS(SELECT 1 FROM admin_bootstrap_tokens WHERE id=? AND used_at IS NULL AND expires_at>?)").bind(id,fullName,email,salt,passwordHash,now,bootstrap.id,now),
+      env.DB.prepare("INSERT INTO users (id,full_name,email,password_salt,password_hash,email_verified,created_at,account_active) SELECT ?,?,?,?,?,1,?,1 WHERE NOT EXISTS(SELECT 1 FROM users WHERE lower(email) IN ("+marks+")) AND EXISTS(SELECT 1 FROM admin_bootstrap_tokens WHERE id=? AND used_at IS NULL AND expires_at>?)").bind(id,fullName,email,salt,passwordHash,now,...configuredAdmins,bootstrap.id,now),
       env.DB.prepare("INSERT OR IGNORE INTO wallets (user_id,balance,created_at,updated_at) SELECT id,0,?,? FROM users WHERE id=?").bind(now,now,id),
       env.DB.prepare("UPDATE admin_bootstrap_tokens SET used_at=? WHERE id=? AND used_at IS NULL AND EXISTS(SELECT 1 FROM users WHERE id=?)").bind(now,bootstrap.id,id),
       env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) SELECT ?,?,?,?, ?,? WHERE EXISTS(SELECT 1 FROM users WHERE id=?)").bind(randomHex(16),email,"admin_bootstrap",id,"Initial administrator account created.",now,id)
