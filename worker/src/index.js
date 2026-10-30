@@ -1414,4 +1414,4 @@ function throwOrReturn(error, headers) {
   throw new ApiError(500, "INTERNAL_ERROR", "The request could not be completed.");
 }
 
-export { normalizeIosVersion, compareIosVersions, resolveIosSupportRule };
+export { normalizeIosVersion, compareIosVersions, resolveIosSupportRule, hasLeadingZeroBits };
