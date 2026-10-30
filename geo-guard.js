@@ -23,8 +23,10 @@
     root.style.visibility="visible";
   }
   if(!api){blocked();return;}
-  fetch(api+"/api/access/check",{method:"GET",cache:"no-store",credentials:"omit",headers:{"Accept":"application/json"}})
+  var controller=new AbortController(),timeout=setTimeout(function(){controller.abort();},8000);
+  fetch(api+"/api/access/check",{method:"GET",cache:"no-store",credentials:"omit",headers:{"Accept":"application/json"},signal:controller.signal})
     .then(function(response){if(!response.ok)throw new Error("Access denied");return response.json();})
     .then(function(data){if(!data||data.supported!==true)throw new Error("Access denied");root.style.visibility="visible";})
-    .catch(blocked);
+    .catch(blocked)
+    .finally(function(){clearTimeout(timeout);});
 })();
