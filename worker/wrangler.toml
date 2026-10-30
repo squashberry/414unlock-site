@@ -20,6 +20,7 @@ migrations_dir = "migrations"
 # JWT_SECRET                 - at least 32 random bytes
 # ADMIN_EMAILS               - comma-separated review-admin email addresses
 # DEVICE_DATA_ENCRYPTION_KEY - long random secret (32+ chars) used for AES-GCM device identifier encryption
+# HICELLTEK_API_KEY          - HiCellTek IMEI/TAC lookup API key; server-side only
 # Payment verification integration; set only after confirming SquashberryPay's actual API contract:
 # wrangler secret put SQUASHBERRYPAY_VERIFY_URL
 # wrangler secret put SQUASHBERRYPAY_API_KEY
