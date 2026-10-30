@@ -39,6 +39,9 @@ jobs:
       - name: Run iOS policy unit tests
         run: node --test worker/tests/ios-policy.test.mjs
 
+      - name: Run wallet and account-control regression tests
+        run: python3 -m unittest worker/tests/test_migrations.py
+
       - name: Apply all SQL migrations in an in-memory SQLite database
         run: |
           python3 - <<'PY'
@@ -84,5 +87,8 @@ jobs:
           else:
               raise SystemExit("The iOS rule table accepted an invalid exact-rule shape")
 
-          print("All SQL migrations applied; required tables and iOS rule constraints passed.")
+          user_columns = {row[1] for row in db.execute("PRAGMA table_info(users)")}
+          if not {"account_active", "account_status_note", "account_status_updated_at", "account_status_updated_by"}.issubset(user_columns):
+              raise SystemExit("User account-control columns are missing after migrations")
+          print("All SQL migrations applied; required tables, user account controls, and iOS rule constraints passed.")
           PY

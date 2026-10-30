@@ -105,9 +105,18 @@ footer{background:#fff;padding-bottom:30px}
 </div></header>
 <main><div class="wrap">
 <div id="admin-banner" class="portal-banner" role="status" aria-live="polite" hidden></div>
-<div class="admin-tabs" role="tablist"><button type="button" id="tab-orders" class="active" role="tab" aria-selected="true">Service requests</button><button type="button" id="tab-topups" role="tab" aria-selected="false">Top-up review</button><button type="button" id="tab-ios" role="tab" aria-selected="false">iOS support</button></div>
+<div class="admin-tabs" role="tablist"><button type="button" id="tab-orders" class="active" role="tab" aria-selected="true">Service requests</button><button type="button" id="tab-topups" role="tab" aria-selected="false">Top-up review</button><button type="button" id="tab-users" role="tab" aria-selected="false">Users</button><button type="button" id="tab-ios" role="tab" aria-selected="false">iOS support</button></div>
 <section id="orders-section"><div class="qhead"><h2>Device service requests</h2><p>Use the verified details to manually register the order with your service provider, then update its progress here. Do not start a service unless device authorisation has been checked.</p></div><div id="admin-orders" class="admin-card-list"><div class="empty-records">Connect the secure API to load requests.</div></div></section>
 <section id="topups-section" hidden><div class="qhead"><h2>SquashberryPay top-up verification</h2><p>Check each transaction inside SquashberryPay before approving. The submitted reference alone is not proof of payment. Approving a request credits the user’s wallet once.</p></div><div id="admin-topups" class="admin-card-list"><div class="empty-records">Connect the secure API to load requests.</div></div></section>
+<section id="users-section" hidden>
+  <div class="qhead"><h2>User accounts</h2><p>Search registered accounts, review verification and wallet summaries, and activate or deactivate access. Deactivation blocks new logins and invalidates existing API sessions; user records and transaction history are retained.</p></div>
+  <div class="ios-rule-editor"><form id="user-search-form" class="ios-rule-form">
+    <div class="field span-two"><label for="user-search">Search by name or email</label><input id="user-search" type="search" maxlength="80" placeholder="Enter a name or email address"></div>
+    <div class="ios-rule-actions span-two"><button class="portal-button portal-button-dark portal-submit" type="submit">Search users</button><button id="user-search-clear" class="portal-button portal-button-outline" type="button">Clear</button></div>
+  </form></div>
+  <div id="admin-users-status" class="ios-support-status" role="status" aria-live="polite">Loading user accounts…</div>
+  <div id="admin-users" class="admin-card-list"><div class="empty-records">Connect the secure API to load user accounts.</div></div>
+</section>
 <section id="ios-support-section" hidden>
   <div class="qhead"><h2>iOS compatibility policy</h2><p>Control which iOS versions the desktop engine may proceed with. The app must check this live policy before starting an unlock workflow. If no rule matches, or the API is unavailable, the app must stop and say “This phone's iOS version isn't supported.”</p></div>
   <div id="ios-support-status" class="ios-support-status" role="status" aria-live="polite">Loading iOS support rules…</div>
