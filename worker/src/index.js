@@ -942,7 +942,6 @@ async function checkIosCompatibility(env, headers, url) {
         version: rule.version || "",
         minVersion: rule.min_version || "",
         maxVersion: rule.max_version || "",
-        note: rule.note || ""
       } : null,
       code: allowed ? "IOS_VERSION_ALLOWED" : "IOS_VERSION_UNSUPPORTED",
       message: allowed ? "This iOS version is enabled by 414Unlock." : "This phone's iOS version isn't supported."
