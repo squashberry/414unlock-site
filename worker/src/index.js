@@ -15,7 +15,7 @@ export default {
       if (!isOriginAllowed(origin, env)) return json({ error: "ORIGIN_NOT_ALLOWED", message: "This origin is not permitted." }, 403, headers);
       const path = new URL(request.url).pathname;
       if (request.method === "GET" && path === "/api/health") {
-        let databaseReady = false;
+        let databaseReady = false, browserSecurityReady = false;
         if (env.DB) {
           try {
             const tableCheck = await env.DB.prepare(
@@ -23,6 +23,7 @@ export default {
             ).all();
             const names = new Set((tableCheck.results || []).map((row) => row.name));
             databaseReady = ["users","verification_submissions","payment_sessions","wallets","wallet_transactions","topup_requests","service_orders","ios_support_rules","support_tickets","support_messages","admin_bootstrap_tokens"].every((name) => names.has(name));
+            browserSecurityReady = ["auth_browser_challenges","auth_security_events"].every((name) => names.has(name));
           } catch (_) { databaseReady = false; }
         }
         const cloudinaryReady = cloudinaryConfigured(env);
@@ -30,11 +31,11 @@ export default {
         const adminReady = Boolean(env.ADMIN_EMAILS && env.ADMIN_EMAILS.trim());
         const deviceEncryptionReady = typeof env.DEVICE_DATA_ENCRYPTION_KEY === "string" && env.DEVICE_DATA_ENCRYPTION_KEY.length >= 32;
         // Login/admin auth do not depend on optional document storage or outbound email.
-        const ready = databaseReady && authReady && adminReady && deviceEncryptionReady;
+        const ready = databaseReady && browserSecurityReady && authReady && adminReady && deviceEncryptionReady;
         return json({
           ok: ready, service: "414unlock-api", version: "member-management-v1",
           checks: {
-            database: databaseReady, privateDocuments: cloudinaryReady, authentication: authReady,
+            database: databaseReady, browserSecurity: browserSecurityReady, privateDocuments: cloudinaryReady, authentication: authReady,
             adminAccess: adminReady, deviceEncryption: deviceEncryptionReady
           }
         }, ready ? 200 : 503, headers);
@@ -193,6 +194,7 @@ async function beginBrowserChallenge(request,env,headers) {
     if(!["signup","login","admin_bootstrap"].includes(purpose))throw new ApiError(400,"INVALID_BROWSER_CHECK","The browser check request is invalid.");
     const identity=await requestIdentity(request,env),now=Math.floor(Date.now()/1000);
     await env.DB.prepare("DELETE FROM auth_browser_challenges WHERE expires_at < ?").bind(now-600).run();
+    await env.DB.prepare("DELETE FROM auth_security_events WHERE created_at < ?").bind(now-7776000).run();
     const issued=await env.DB.prepare("SELECT COUNT(*) AS count FROM auth_browser_challenges WHERE ip_hash=? AND created_at>?").bind(identity.ipHash,now-600).first();
     if(Number(issued&&issued.count||0)>=24){await recordSecurityEvent(env,identity,"browser_challenge_rate_limited","blocked","challenge_rate_limit","");throw new ApiError(429,"BROWSER_CHECK_RATE_LIMIT","Too many security checks were requested. Please try again later.");}
     const id=randomHex(16),nonce=randomHex(32),expiresAt=now+120,nonceHash=await keyedHash("browser-challenge:"+id+":"+nonce,env);
@@ -875,7 +877,7 @@ async function restoreAdminUser(request,env,headers,id){
       env.DB.prepare("UPDATE users SET deleted_at=NULL,deleted_by=NULL,deleted_note='',account_active=1,account_status_note=?,account_status_updated_at=?,account_status_updated_by=?,auth_version=auth_version+1 WHERE id=? AND deleted_at IS NOT NULL").bind(note,now,admin.email,id),
       env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) VALUES (?,?,?,?,?,?)").bind(randomHex(16),admin.email,"user_restored",id,note,now)
     ]);
-    return json({ok:true,message:"Member account restored. The member can sign in again after any required email verification."},200,headers);
+    return json({ok:true,message:"Member account restored. The member can sign in again immediately."},200,headers);
   }catch(error){throwOrReturn(error,headers);}
 }
 async function adjustAdminUserWallet(request,env,headers,id){
