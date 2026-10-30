@@ -93,6 +93,12 @@
    </div>
    <div class="ios-rule-actions"><button type="button" id="site-controls-save" class="portal-button portal-button-dark portal-submit">Save website controls</button><button type="button" id="site-controls-refresh" class="portal-button portal-button-outline">Reload current settings</button></div>
    <div class="ios-rule-editor" style="margin-top:20px">
+    <h3>Private document storage</h3>
+    <p class="admin-note">Test the exact Cloudinary credentials saved on this Worker. This check does not upload a document, and never displays your API key or secret.</p>
+    <div id="storage-check-status" class="ios-support-status" role="status" aria-live="polite">Storage connection has not been tested in this session.</div>
+    <div class="ios-rule-actions"><button type="button" id="storage-check-button" class="portal-button portal-button-dark">Test private document storage</button></div>
+   </div>
+   <div class="ios-rule-editor" style="margin-top:20px">
     <h3>Desktop app updates</h3>
     <p class="admin-note">Publish the current Windows app version and its installer/release link. The desktop app and installer can check the public update endpoint and prompt users when a newer or mandatory version is available.</p>
     <div id="app-update-status" class="ios-support-status" role="status" aria-live="polite">Update policy is loading…</div>

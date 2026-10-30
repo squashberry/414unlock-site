@@ -92,6 +92,7 @@ export default {
       const adminUserPasswordMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/password$/i);
       if (request.method === "POST" && adminUserPasswordMatch) return await setAdminUserPassword(request, env, headers, adminUserPasswordMatch[1]);
       if (request.method === "GET" && path === "/api/admin/security/events") return await listAdminSecurityEvents(request, env, headers);
+      if (request.method === "GET" && path === "/api/admin/storage/check") return await checkCloudinaryStorage(request, env, headers);
       if (request.method === "GET" && path === "/api/admin/site-controls") return await getAdminSiteControls(request, env, headers);
       if (request.method === "POST" && path === "/api/admin/site-controls") return await saveAdminSiteControls(request, env, headers);
       const adminUserWalletMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/wallet-adjustment$/i);
@@ -466,15 +467,38 @@ async function verificationStatus(request, env, headers) {
     return json({ ok: true, status: row.status, submissionId: row.id, submittedAt: row.submitted_at, reviewedAt: row.reviewed_at, note: row.review_note || "" }, 200, headers);
   } catch (error) { throwOrReturn(error, headers); }
 }
-function cloudinaryConfigured(env) { return Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET); }
+function cloudinaryConfigured(env) { return Boolean(String(env.CLOUDINARY_CLOUD_NAME || "").trim() && String(env.CLOUDINARY_API_KEY || "").trim() && String(env.CLOUDINARY_API_SECRET || "").trim()); }
 async function sha1Hex(value) { return bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-1", encoder.encode(value)))); }
 function cloudinaryApiBase(env) {
   if (!cloudinaryConfigured(env)) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "Private document storage is not configured yet.");
   return "https://api.cloudinary.com/v1_1/" + encodeURIComponent(env.CLOUDINARY_CLOUD_NAME);
 }
 function cloudinaryAuthorization(env) {
-  return "Basic " + btoa(env.CLOUDINARY_API_KEY + ":" + env.CLOUDINARY_API_SECRET);
+  const key = String(env.CLOUDINARY_API_KEY || "").trim(), secret = String(env.CLOUDINARY_API_SECRET || "").trim();
+  return "Basic " + btoa(key + ":" + secret);
 }
+async function checkCloudinaryStorage(request, env, headers) {
+  try {
+    await requireAdmin(request, env);
+    if (!cloudinaryConfigured(env)) throw new ApiError(503, "PRIVATE_STORAGE_NOT_CONFIGURED", "The Cloudinary cloud name, API key or API secret is missing from the Worker configuration.");
+    let response, data = {};
+    try {
+      response = await fetch(cloudinaryApiBase(env) + "/ping", { method: "GET", headers: { Authorization: cloudinaryAuthorization(env) } });
+      try { data = await response.json(); } catch (_) {}
+    } catch (_) {
+      console.error("Cloudinary storage check failed: cloudinary_network_error");
+      return json({ ok: false, error: "PRIVATE_STORAGE_CHECK_FAILED", message: "The Worker could not reach Cloudinary. Check the Cloudinary service and try again." }, 502, headers);
+    }
+    if (!response.ok || String(data.status || "").toLowerCase() !== "ok") {
+      const rejected = Number(response.status) === 401 || /invalid api key|invalid credentials|authentication failed|unauthorized/i.test(String(data && data.error && data.error.message || ""));
+      const reason = rejected ? "cloudinary_auth_rejected" : "cloudinary_http_" + String(Number(response.status) || 0);
+      console.error("Cloudinary storage check failed:", reason);
+      return json({ ok: false, error: rejected ? "CLOUDINARY_AUTH_REJECTED" : "PRIVATE_STORAGE_CHECK_FAILED", message: rejected ? "Cloudinary rejected the API key or secret saved on this Worker. Replace both Worker secrets using the matching API key entry in Cloudinary, then run this test again. The values are never shown here." : "Cloudinary did not confirm that private storage is available. Check the provider account and retry." }, rejected ? 503 : 502, headers);
+    }
+    return json({ ok: true, provider: "Cloudinary", authenticated: true, message: "Cloudinary accepted the Worker credentials. Private document storage is reachable." }, 200, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
 function cloudinaryUploadFailureReason(status, data) {
   const message = String(data && data.error && data.error.message || "").toLowerCase();
   if (Number(status) === 401 || /invalid api key|invalid credentials|authentication failed|unauthorized/.test(message)) return "cloudinary_auth_rejected";
@@ -501,7 +525,10 @@ async function uploadCloudinaryDocument(file, documentId, env) {
   if (!response.ok || !data.public_id || !data.version) {
     const diagnosticReason = cloudinaryUploadFailureReason(response.status, data);
     console.error("Cloudinary upload failed:", diagnosticReason);
-    const error = new ApiError(502, "PRIVATE_STORAGE_UPLOAD_FAILED", "Your document could not be stored securely. Please try again later.");
+    const publicMessage = diagnosticReason === "cloudinary_auth_rejected"
+      ? "Cloudinary rejected the private storage credentials. Your verification application was not submitted. Please contact support after storage has been restored."
+      : "Your document could not be stored securely. Your verification application was not submitted; please try again later.";
+    const error = new ApiError(502, "PRIVATE_STORAGE_UPLOAD_FAILED", publicMessage);
     error.diagnosticReason = diagnosticReason;
     throw error;
   }
@@ -700,7 +727,7 @@ const WALLET_MODEL_PRICES = Object.freeze({
   iphone_7: 1600,
   iphone_8: 1900,
   iphone_x: 2200,
-  iphone_xr: 2500,
+  iphone_xr: 1550,
   iphone_11_12: 3000,
   iphone_13_14: 3500,
   iphone_15: 5000,
@@ -768,9 +795,13 @@ async function walletOverview(request, env, headers) {
     const orders = await env.DB.prepare(
       "SELECT id,service_key,model_key,device_model,masked_identifier,fast_service,amount_due,status,check_credit_order_id,provider_reference,admin_note,created_at,updated_at FROM service_orders WHERE user_id=? ORDER BY created_at DESC LIMIT 25"
     ).bind(user.id).all();
+    const stats = await env.DB.prepare(
+      "SELECT COUNT(*) AS total_orders, COALESCE(SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END),0) AS completed_orders, COALESCE(SUM(CASE WHEN status='rejected' THEN 1 ELSE 0 END),0) AS rejected_orders, (SELECT COALESCE(SUM(CASE WHEN kind='purchase' THEN -amount WHEN kind='refund' THEN -amount ELSE 0 END),0) FROM wallet_transactions WHERE user_id=?) AS credits_used FROM service_orders WHERE user_id=?"
+    ).bind(user.id, user.id).first();
     return json({
       ok: true,
       balance: Number(wallet ? wallet.balance : 0),
+      stats: { totalOrders: Number(stats && stats.total_orders || 0), completedOrders: Number(stats && stats.completed_orders || 0), rejectedOrders: Number(stats && stats.rejected_orders || 0), creditsUsed: Math.max(0, Number(stats && stats.credits_used || 0)) },
       transactions: (transactions.results || []).map((r) => ({
         id: r.id, kind: r.kind, amount: Number(r.amount), balanceAfter: Number(r.balance_after),
         reference: r.reference, description: r.description, createdAt: r.created_at

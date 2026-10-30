@@ -74,3 +74,19 @@ test("update checks remain available during maintenance and outside the site geo
   assert.equal(response.status, 200);
   assert.equal(data.updateAvailable, true);
 });
+
+test("private storage credential diagnostic requires an administrator session", async () => {
+  const request = new Request("https://api.example.test/api/admin/storage/check", {
+    headers: { "cf-ipcountry": "GM" }
+  });
+  const response = await worker.fetch(request, {
+    DB: makeDb(),
+    JWT_SECRET: "x".repeat(40),
+    CLOUDINARY_CLOUD_NAME: "test-cloud",
+    CLOUDINARY_API_KEY: "not-used-without-admin-session",
+    CLOUDINARY_API_SECRET: "not-used-without-admin-session"
+  });
+  const data = await response.json();
+  assert.equal(response.status, 401);
+  assert.equal(data.error, "AUTH_REQUIRED");
+});
