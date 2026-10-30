@@ -14,6 +14,23 @@
 .tag{font-size:13px;font-weight:600;padding:3px 11px;border-radius:99px;background:#e4e9ff;color:var(--blue);white-space:nowrap}
 .row strong{font:800 28px var(--disp);letter-spacing:-.03em;text-align:right;font-variant-numeric:tabular-nums}
 .go{font-weight:600;color:var(--blue);text-decoration:underline;text-underline-offset:4px}
+.price-intro{margin:-6px 0 18px;color:var(--mute);max-width:60em}
+.compat-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:20px 0}
+.compat-card{padding:24px;background:#fff;border:1px solid var(--line);border-radius:14px}
+.compat-kicker{display:inline-block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--blue);margin-bottom:10px}
+.compat-card h3{font:750 22px var(--disp);line-height:1.15;margin-bottom:10px}
+.compat-card p{color:var(--mute);margin:8px 0 0}
+.compat-card .compat-range{color:var(--green);font-weight:700}
+.compat-note{margin:20px 0;padding:18px 20px;background:#fff6dc;border-left:5px solid #e0a800;border-radius:0 12px 12px 0;color:#5c4700}
+.compat-note b{display:block;color:#3f3000;margin-bottom:4px}
+.compat-note p{margin:0}
+.compat-subtitle{font:750 24px var(--disp);margin:30px 0 12px}
+.table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
+.compat-table{border-collapse:collapse;width:100%;min-width:720px;font-size:14px}
+.compat-table th,.compat-table td{text-align:left;vertical-align:top;padding:14px 16px;border-bottom:1px solid var(--line)}
+.compat-table th{background:#f1f3fa;color:var(--ink);font-weight:700}
+.compat-table td{color:var(--mute)}
+.compat-source{font-size:13px;color:var(--mute);margin-top:14px}
 .sec{margin-top:64px}.sec h2{font-size:clamp(28px,3.4vw,40px);font-weight:750;margin-bottom:20px}
 .extras{border-top:2px solid var(--ink)}
 .extras>div{display:grid;grid-template-columns:200px 1fr auto;gap:8px 24px;align-items:baseline;padding:20px 4px;border-bottom:1px solid var(--line)}
@@ -29,7 +46,7 @@
 .cta .wrap{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap}
 .cta h2{font-size:clamp(28px,3.6vw,42px);font-weight:800}.cta p{margin:8px 0 0;color:#d3f0dc}
 .cta .btn{color:var(--green)}
-@media(max-width:760px){.row{grid-template-columns:1fr auto;gap:6px 16px}.row h3{grid-column:1/-1}.row .tag{justify-self:start}.row strong{text-align:left;grid-row:3}.row .go{grid-row:3;justify-self:end}.extras>div{grid-template-columns:1fr auto}.extras p{grid-column:1/-1;grid-row:2}.facts{grid-template-columns:1fr}.facts>div+div{padding-left:0;border-left:0;border-top:1px solid var(--line);margin-top:20px}}
+@media(max-width:760px){.compat-grid{grid-template-columns:1fr}.row{grid-template-columns:1fr auto;gap:6px 16px}.row h3{grid-column:1/-1}.row .tag{justify-self:start}.row strong{text-align:left;grid-row:3}.row .go{grid-row:3;justify-self:end}.extras>div{grid-template-columns:1fr auto}.extras p{grid-column:1/-1;grid-row:2}.facts{grid-template-columns:1fr}.facts>div+div{padding-left:0;border-left:0;border-top:1px solid var(--line);margin-top:20px}}
 </style>
 </head>
 <body>
@@ -41,21 +58,41 @@
 <main><div class="wrap">
 <div class="notice"><b>No-signal / Wi-Fi-only services</b>All unlock services listed here are Wi-Fi-only after the service. Signal unlock is not available at this time. Device eligibility and carrier status can affect the final service decision.</div>
 <section class="sec"><h2>Price by iPhone model</h2>
+<p class="price-intro">The same D1,550 base rate applies through iPhone X and to XR / XS / XS Max. Newer generations step up by D500 per model band.</p>
 <div class="rows">
-<a class="row" href="account.html?flow=signup"><h3>iPhone 6 / 6 Plus / 6S / SE</h3><span class="tag">Wi-Fi only</span><strong>D1,400</strong><span class="go">Start</span></a>
-<a class="row" href="account.html?flow=signup"><h3>iPhone 7 / 7 Plus</h3><span class="tag">Wi-Fi only</span><strong>D1,600</strong><span class="go">Start</span></a>
-<a class="row" href="account.html?flow=signup"><h3>iPhone 8 / 8 Plus</h3><span class="tag">Wi-Fi only</span><strong>D1,900</strong><span class="go">Start</span></a>
-<a class="row" href="account.html?flow=signup"><h3>iPhone X</h3><span class="tag">Wi-Fi only</span><strong>D2,200</strong><span class="go">Start</span></a>
-<a class="row" href="account.html?flow=signup"><h3>iPhone XR / XS / XS Max</h3><span class="tag">Wi-Fi only</span><strong>D1,550</strong><span class="go">Start</span></a>
-<a class="row" href="account.html?flow=signup"><h3>iPhone 11 &amp; 12 Series</h3><span class="tag">Wi-Fi only</span><strong>D3,000</strong><span class="go">Start</span></a>
-<a class="row" href="account.html?flow=signup"><h3>iPhone 13 &amp; 14 Series</h3><span class="tag">Wi-Fi only</span><strong>D3,500</strong><span class="go">Start</span></a>
-<a class="row" href="account.html?flow=signup"><h3>iPhone 15 Series</h3><span class="tag">Wi-Fi only</span><strong>D5,000</strong><span class="go">Start</span></a>
-<a class="row" href="account.html?flow=signup"><h3>iPhone 16 Series</h3><span class="tag">Wi-Fi only</span><strong>D6,500</strong><span class="go">Start</span></a>
+<a class="row" href="account.html?flow=signup"><h3>iPhone 5S through iPhone X</h3><span class="tag">A7–A11 · Wi-Fi only</span><strong>D1,550</strong><span class="go">Start</span></a>
+<a class="row" href="account.html?flow=signup"><h3>iPhone XR / XS / XS Max · SE (2nd / 3rd gen)</h3><span class="tag">A12+ · Wi-Fi only</span><strong>D1,550</strong><span class="go">Start</span></a>
+<a class="row" href="account.html?flow=signup"><h3>iPhone 11 and 12 series</h3><span class="tag">A12+ · Wi-Fi only</span><strong>D2,050</strong><span class="go">Start</span></a>
+<a class="row" href="account.html?flow=signup"><h3>iPhone 13 and 14 series</h3><span class="tag">A12+ · Wi-Fi only</span><strong>D2,550</strong><span class="go">Start</span></a>
+<a class="row" href="account.html?flow=signup"><h3>iPhone 15 series</h3><span class="tag">A12+ · Wi-Fi only</span><strong>D3,050</strong><span class="go">Start</span></a>
+<a class="row" href="account.html?flow=signup"><h3>iPhone 16 series (including 16e)</h3><span class="tag">A12+ · Wi-Fi only</span><strong>D3,550</strong><span class="go">Start</span></a>
 </div></section>
-<section class="sec"><h2>Optional add-ons</h2>
+<section class="sec compat"><h2>Supported iPhone and iPad models</h2>
+<p class="compat-lead">The device and firmware ranges below are the compatibility ranges currently advertised by iRemove Tools. They are not a guarantee that every device in a family will pass its live compatibility check. We confirm the exact model and firmware before accepting an order.</p>
+<div class="compat-grid">
+<article class="compat-card">
+<span class="compat-kicker">A7–A11 devices</span><h3>iPhone 5S through iPhone X</h3>
+<p class="compat-range">Advertised firmware: iOS 12.0–16.7.8</p>
+<p>iPhone 5S, 6, 6 Plus, 6S, 6S Plus, SE (1st generation), 7, 7 Plus, 8, 8 Plus and X.</p>
+</article>
+<article class="compat-card">
+<span class="compat-kicker">A12 and newer devices</span><h3>iPhone XR through iPhone 16 Pro Max</h3>
+<p class="compat-range">Advertised firmware: iOS 17.0.1–26.1</p>
+<p>iPhone XR, XS, XS Max, 11 / 11 Pro / 11 Pro Max, 12 / 12 mini / 12 Pro / 12 Pro Max, 13 family, 14 family, 15 family and 16 family. The vendor's pricing list also names SE (2nd and 3rd generation) and iPhone 16e; exact eligibility must be checked.</p>
+</article>
+</div>
+<div class="compat-note"><b>Important — no-signal service</b><p>For new A12+ iPhone orders, the advertised option is currently No Signal Bypass. Wi-Fi, apps, internet browsing and internet-based calling may work, but ordinary mobile-network outgoing calls and SMS are not available. Previously verified devices may have different eligibility; this must be confirmed with the provider. 414Unlock currently lists all iPhone services as Wi-Fi-only / no-signal.</p></div>
+<h3 class="compat-subtitle">Supported iPad families</h3>
+<div class="table-scroll"><table class="compat-table"><thead><tr><th>Device family</th><th>Models listed by the vendor</th><th>Advertised firmware range</th></tr></thead><tbody>
+<tr><td><b>A12+ iPads (2019 onward)</b></td><td>iPad Pro M4 (11-inch and 13-inch); iPad Air M2 (11-inch and 13-inch); iPad mini (A17 Pro); iPad Air M3 (11-inch and 13-inch); iPad (A16); iPad Pro 12.9-inch (3rd–6th generation); iPad Pro 11-inch (1st–4th generation); iPad Air (3rd–5th generation); iPad mini (5th–6th generation); iPad (8th–10th generation).</td><td>Generally iPadOS 17.0.1–26.1 for the listed A12+ models; some newer models are listed from iPadOS 18.</td></tr>
+<tr><td><b>A7+ older iPads</b></td><td>Earlier iPad, iPad Pro, iPad Air and iPad mini models up to the vendor's 2019 cutoff. Exact generation and chip must be checked before quoting.</td><td>Varies by model. The vendor lists legacy firmware starting at iOS/iPadOS 12; some older device entries stop at 18.5.</td></tr>
+</tbody></table></div>
+<div class="compat-note"><b>iPad orders</b><p>iPad compatibility is shown for reference only. iPad requests are not yet available in the automated iPhone order form, so contact support for an exact model check and a GMD quote before making payment.</p></div>
+<p class="compat-source">Compatibility reference: <a href="https://iremove.tools/index.php/bypass-icloud-activation-lock-screen-software" target="_blank" rel="noopener noreferrer">iRemove Tools — Activation Lock compatibility</a>. Compatibility and available service options can change; the provider's checker is the final confirmation.</p>
+</section><section class="sec"><h2>Optional add-ons</h2>
 <div class="extras"><div><h3>IMEI check</h3><p>D150, credited back against your unlock if you proceed within 7 days after the check is completed.</p><strong>D150</strong></div><div><h3>Fast service</h3><p>Optional priority add-on on a priced unlock order. Delivery still depends on device eligibility.</p><strong>+D1,000</strong></div></div>
 <div class="facts"><div><strong>1–5 days</strong><b>Estimated delivery</b><small>Depending on device</small></div><div><strong>GMD</strong><b>Wallet balance</b><small>Pay from your available account credit</small></div><div><strong>✓</strong><b>Order status</b><small>Follow service progress from your account</small></div></div>
-<div class="terms-note"><b>Before placing an order</b>Prices may vary by device status or carrier; confirm eligibility before processing. The limited first-time promotion advertised on the existing prices page is subject to eligibility and confirmation before the service begins. No refund is available after processing has started. Submit details only for a device you own or are authorised to service.</div></section>
+<div class="terms-note"><b>Before placing an order</b>Prices are in Gambian Dalasi and apply to the listed model bands. Exact device and firmware eligibility is checked before processing. No refund is available after processing has started. Submit details only for a device you own or are authorised to service.</div></section>
 </div></main>
 <section class="cta"><div class="wrap"><div><h2>Ready to submit a service request?</h2><p>Sign in, top up your wallet and send the device information securely.</p></div><a class="btn btn-w" href="account.html?flow=signin">Open my account</a></div></section>
 <footer><div class="wrap foot"><a class="brand" href="index.html"><span class="mark">414</span><span>Unlock</span></a><div class="links"><a href="services.html">Prices</a><a href="guide.html">Service guide</a><a href="contact.html">Support</a><a href="used-iphone.html">Used iPhone guide</a><a href="shops.html">Repair shops</a><a href="policy.html">Ownership policy</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="account.html?flow=signin">Account</a></div><span>© 414Unlock · The Gambia</span></div><div class="stripe" style="margin-top:28px" aria-hidden="true"></div></footer>
