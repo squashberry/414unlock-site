@@ -1,6 +1,6 @@
 /* Public site configuration only. Never put secrets in this file. */
 window.UNLOCK414_CONFIG = Object.freeze({
-  API_BASE_URL: "",
+  API_BASE_URL: "https://414unlock-auth-api.414unlock.workers.dev",
   DOWNLOAD_URL: "https://github.com/squashberry/414unlock-site/releases/latest",
   APP_CALLBACK: "414unlock://auth/callback",
   SQUASHBERRYPAY_CHECKOUT_URL: "",

@@ -10,7 +10,7 @@ class WalletMigrationTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
         self.db.execute("PRAGMA foreign_keys = ON")
-        for migration in ("0001_init.sql", "0002_payments.sql", "0003_wallet_orders.sql", "0004_ios_support_rules.sql", "0005_user_account_controls.sql", "0006_support_chat.sql"):
+        for migration in ("0001_init.sql", "0002_payments.sql", "0003_wallet_orders.sql", "0004_ios_support_rules.sql", "0005_user_account_controls.sql", "0006_support_chat.sql", "0007_member_management.sql"):
             self.db.executescript((MIGRATIONS / migration).read_text(encoding="utf-8"))
         self.db.execute(
             "INSERT INTO users (id, full_name, email, password_salt, password_hash, email_verified, created_at) VALUES (?,?,?,?,?,?,?)",
@@ -70,6 +70,29 @@ class WalletMigrationTests(unittest.TestCase):
         ).fetchone()
         self.assertEqual(row, (0, "Manual admin review", "admin@example.test"))
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM users WHERE id='user-1'").fetchone()[0], 1)
+
+    def test_member_management_adds_recovery_archive_and_bootstrap_controls(self):
+        columns = {row[1] for row in self.db.execute("PRAGMA table_info(users)").fetchall()}
+        self.assertTrue({"deleted_at", "deleted_by", "deleted_note", "auth_version"}.issubset(columns))
+        self.db.execute(
+            "INSERT INTO admin_bootstrap_tokens (id, token_hash, expires_at, created_at) VALUES ('bootstrap-1','hashed-token',5000,1000)"
+        )
+        self.assertEqual(self.db.execute("SELECT used_at FROM admin_bootstrap_tokens WHERE id='bootstrap-1'").fetchone()[0], None)
+        self.db.execute("UPDATE users SET deleted_at=2000,deleted_by='admin@example.test',deleted_note='requested',account_active=0,auth_version=auth_version+1 WHERE id='user-1'")
+        self.db.commit()
+        self.assertEqual(self.db.execute("SELECT deleted_at,account_active,auth_version FROM users WHERE id='user-1'").fetchone(), (2000,0,1))
+        self.db.execute("UPDATE users SET deleted_at=NULL,deleted_by=NULL,deleted_note='',account_active=1,auth_version=auth_version+1 WHERE id='user-1'")
+        self.db.commit()
+        self.assertEqual(self.db.execute("SELECT deleted_at,account_active,auth_version FROM users WHERE id='user-1'").fetchone(), (None,1,2))
+
+    def test_password_reset_tokens_are_single_use_records(self):
+        self.db.execute("INSERT INTO password_reset_tokens (id,user_id,token_hash,expires_at,created_at) VALUES ('reset-1','user-1','hashed-reset',3000,1000)")
+        self.db.execute("UPDATE password_reset_tokens SET used_at=2000,used_by='request-1' WHERE id='reset-1' AND used_at IS NULL AND expires_at>2000")
+        self.db.commit()
+        self.assertEqual(self.db.execute("SELECT used_at,used_by FROM password_reset_tokens WHERE id='reset-1'").fetchone(), (2000,"request-1"))
+        again = self.db.execute("UPDATE password_reset_tokens SET used_at=2100,used_by='request-2' WHERE id='reset-1' AND used_at IS NULL AND expires_at>2100")
+        self.db.commit()
+        self.assertEqual(again.rowcount, 0)
 
     def test_support_tickets_and_messages_are_created_and_can_be_closed(self):
         self.db.execute(

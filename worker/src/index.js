@@ -20,34 +20,32 @@ export default {
         if (env.DB) {
           try {
             const tableCheck = await env.DB.prepare(
-              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','verification_submissions','payment_sessions','wallets','wallet_transactions','topup_requests','service_orders','ios_support_rules','support_tickets','support_messages')"
+              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users','verification_submissions','payment_sessions','wallets','wallet_transactions','topup_requests','service_orders','ios_support_rules','support_tickets','support_messages','password_reset_tokens','admin_bootstrap_tokens')"
             ).all();
             const names = new Set((tableCheck.results || []).map((row) => row.name));
-            databaseReady = ["users","verification_submissions","payment_sessions","wallets","wallet_transactions","topup_requests","service_orders","ios_support_rules","support_tickets","support_messages"].every((name) => names.has(name));
-          } catch (_) {
-            databaseReady = false;
-          }
+            databaseReady = ["users","verification_submissions","payment_sessions","wallets","wallet_transactions","topup_requests","service_orders","ios_support_rules","support_tickets","support_messages","password_reset_tokens","admin_bootstrap_tokens"].every((name) => names.has(name));
+          } catch (_) { databaseReady = false; }
         }
-        const cloudinaryReady = Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET);
-        const storageReady = Boolean(databaseReady && cloudinaryReady);
+        const cloudinaryReady = cloudinaryConfigured(env);
         const authReady = typeof env.JWT_SECRET === "string" && env.JWT_SECRET.length >= 32;
-        const ready = storageReady && authReady;
+        const adminReady = Boolean(env.ADMIN_EMAILS && env.ADMIN_EMAILS.trim());
+        const deviceEncryptionReady = typeof env.DEVICE_DATA_ENCRYPTION_KEY === "string" && env.DEVICE_DATA_ENCRYPTION_KEY.length >= 32;
+        // Login/admin auth do not depend on optional document storage or outbound email.
+        const ready = databaseReady && authReady && adminReady && deviceEncryptionReady;
         return json({
-          ok: ready,
-          service: "414unlock-api",
-          version: "cloudinary-support-v2",
+          ok: ready, service: "414unlock-api", version: "member-management-v1",
           checks: {
-            database: databaseReady,
-            privateDocuments: cloudinaryReady,
-            authentication: authReady,
+            database: databaseReady, privateDocuments: cloudinaryReady, authentication: authReady,
             emailDelivery: Boolean(env.RESEND_API_KEY && env.FROM_EMAIL),
-            adminAccess: Boolean(env.ADMIN_EMAILS && env.ADMIN_EMAILS.trim()),
-            deviceEncryption: typeof env.DEVICE_DATA_ENCRYPTION_KEY === "string" && env.DEVICE_DATA_ENCRYPTION_KEY.length >= 32
+            adminAccess: adminReady, deviceEncryption: deviceEncryptionReady
           }
         }, ready ? 200 : 503, headers);
       }
       if (!env.DB) return json({ error: "SERVICE_NOT_CONFIGURED", message: "The account database is not configured." }, 503, headers);
       if (!env.JWT_SECRET || env.JWT_SECRET.length < 32) return json({ error: "SERVICE_NOT_CONFIGURED", message: "The account service is not fully configured." }, 503, headers);
+      if (request.method === "POST" && path === "/api/admin/bootstrap") return await bootstrapFirstAdmin(request, env, headers);
+      if (request.method === "POST" && path === "/api/auth/forgot-password") return await requestPasswordReset(request, env, headers);
+      if (request.method === "POST" && path === "/api/auth/reset-password") return await resetPassword(request, env, headers);
       if (request.method === "POST" && path === "/api/auth/signup") return await signup(request, env, headers);
       if (request.method === "POST" && path === "/api/auth/verify-email") return await verifyEmail(request, env, headers);
       if (request.method === "POST" && path === "/api/auth/login") return await login(request, env, headers);
@@ -69,6 +67,18 @@ export default {
       if (request.method === "POST" && adminSupportStatusMatch) return await updateAdminSupportTicketStatus(request, env, headers, adminSupportStatusMatch[1]);
       if (request.method === "GET" && path === "/api/admin/queue") return await adminQueue(request, env, headers);
       if (request.method === "GET" && path === "/api/admin/users") return await listAdminUsers(request, env, headers);
+      const adminUserDetailMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})$/i);
+      if (request.method === "GET" && adminUserDetailMatch) return await getAdminUserDetails(request, env, headers, adminUserDetailMatch[1]);
+      const adminUserProfileMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/profile$/i);
+      if (request.method === "POST" && adminUserProfileMatch) return await updateAdminUserProfile(request, env, headers, adminUserProfileMatch[1]);
+      const adminUserDeleteMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/delete$/i);
+      if (request.method === "POST" && adminUserDeleteMatch) return await deleteAdminUser(request, env, headers, adminUserDeleteMatch[1]);
+      const adminUserRestoreMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/restore$/i);
+      if (request.method === "POST" && adminUserRestoreMatch) return await restoreAdminUser(request, env, headers, adminUserRestoreMatch[1]);
+      const adminUserPasswordResetMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/password-reset$/i);
+      if (request.method === "POST" && adminUserPasswordResetMatch) return await sendAdminUserPasswordReset(request, env, headers, adminUserPasswordResetMatch[1]);
+      const adminUserWalletMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/wallet-adjustment$/i);
+      if (request.method === "POST" && adminUserWalletMatch) return await adjustAdminUserWallet(request, env, headers, adminUserWalletMatch[1]);
       const adminUserStatusMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/status$/i);
       if (request.method === "POST" && adminUserStatusMatch) return await updateAdminUserStatus(request, env, headers, adminUserStatusMatch[1]);
       const adminTopupMatch = path.match(/^\/api\/admin\/topups\/([a-f0-9]{32})\/review$/i);
@@ -147,6 +157,9 @@ function fromBase64url(value) {
   return bytes;
 }
 function bytesToHex(bytes) { return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(""); }
+async function sha256Hex(value) {
+  return bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))));
+}
 async function keyedHash(value, env) {
   const key = await crypto.subtle.importKey("raw", encoder.encode(env.JWT_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return bytesToHex(new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(value))));
@@ -170,7 +183,7 @@ function constantTimeEqual(a, b) {
 async function issueToken(user, env) {
   const now = Math.floor(Date.now() / 1000);
   const head = base64urlText(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const body = base64urlText(JSON.stringify({ sub: user.id, email: user.email, iat: now, exp: now + TOKEN_TTL_SECONDS, iss: "414unlock-auth" }));
+  const body = base64urlText(JSON.stringify({ sub: user.id, email: user.email, ver: Number(user.auth_version || 0), iat: now, exp: now + TOKEN_TTL_SECONDS, iss: "414unlock-auth" }));
   const signingInput = head + "." + body;
   return signingInput + "." + base64url(await hmacBytes(signingInput, env.JWT_SECRET));
 }
@@ -184,9 +197,10 @@ async function readToken(request, env) {
   let claims;
   try { claims = JSON.parse(decoder.decode(fromBase64url(parts[1]))); } catch (_) { throw new ApiError(401, "INVALID_SESSION", "Your session is invalid. Sign in again."); }
   if (!claims.sub || !claims.exp || claims.iss !== "414unlock-auth" || claims.exp <= Math.floor(Date.now() / 1000)) throw new ApiError(401, "SESSION_EXPIRED", "Your session expired. Sign in again.");
-  const user = await env.DB.prepare("SELECT id, full_name, email, email_verified, created_at, account_active FROM users WHERE id = ?").bind(claims.sub).first();
-  if (!user || !user.email_verified) throw new ApiError(401, "INVALID_SESSION", "Your session is invalid. Sign in again.");
+  const user = await env.DB.prepare("SELECT id, full_name, email, email_verified, created_at, account_active, auth_version, deleted_at FROM users WHERE id = ?").bind(claims.sub).first();
+  if (!user || !user.email_verified || user.deleted_at) throw new ApiError(401, "INVALID_SESSION", "Your session is invalid. Sign in again.");
   if (Number(user.account_active) !== 1) throw new ApiError(403, "ACCOUNT_DISABLED", "This 414Unlock account is currently deactivated. Contact support.");
+  if (Number(claims.ver || 0) !== Number(user.auth_version || 0)) throw new ApiError(401, "SESSION_REVOKED", "Your account session has been reset. Sign in again.");
   return user;
 }
 function publicUser(user) { return { id: user.id, fullName: user.full_name, email: user.email, emailVerified: !!user.email_verified, active: Number(user.account_active) !== 0 }; }
@@ -217,6 +231,7 @@ async function signup(request, env, headers) {
     if (fullName.length < 2 || fullName.length > 120) throw new ApiError(400, "INVALID_NAME", "Enter your full name.");
     if (!validEmail(email)) throw new ApiError(400, "INVALID_EMAIL", "Enter a valid email address.");
     if (password.length < 10 || password.length > 128) throw new ApiError(400, "INVALID_PASSWORD", "Use a password between 10 and 128 characters.");
+    if (isAdminEmail(email, env)) throw new ApiError(403, "ADMIN_INVITE_REQUIRED", "The administrator account must be created through the private first-time setup link.");
     if (!env.RESEND_API_KEY || !env.FROM_EMAIL) throw new ApiError(503, "EMAIL_NOT_CONFIGURED", "Email verification is not configured yet.");
     const existing = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first();
     if (existing) throw new ApiError(409, "ACCOUNT_EXISTS", "An account already exists for this email. Try signing in.");
@@ -233,8 +248,8 @@ async function verifyEmail(request, env, headers) {
   try {
     const body = await readJson(request), email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "", code = typeof body.code === "string" ? body.code.trim() : "";
     if (!validEmail(email) || !/^\d{6}$/.test(code)) throw new ApiError(400, "INVALID_CODE", "Enter the email address and six-digit code.");
-    const user = await env.DB.prepare("SELECT id,full_name,email,email_verified,account_active FROM users WHERE email = ?").bind(email).first();
-    if (!user) throw new ApiError(400, "INVALID_CODE", "The code is invalid or expired.");
+    const user = await env.DB.prepare("SELECT id,full_name,email,email_verified,account_active,auth_version,deleted_at FROM users WHERE email = ?").bind(email).first();
+    if (!user || user.deleted_at) throw new ApiError(400, "INVALID_CODE", "The code is invalid or expired.");
     if (Number(user.account_active) !== 1) throw new ApiError(403, "ACCOUNT_DISABLED", "This 414Unlock account is currently deactivated. Contact support.");
     if (user.email_verified) return json({ ok: true, token: await issueToken(user, env), user: publicUser(user) }, 200, headers);
     const now = Math.floor(Date.now() / 1000);
@@ -255,9 +270,10 @@ async function login(request, env, headers) {
   try {
     const body = await readJson(request), email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "", password = typeof body.password === "string" ? body.password : "";
     if (!validEmail(email) || !password) throw new ApiError(400, "INVALID_CREDENTIALS", "Enter your email and password.");
-    const user = await env.DB.prepare("SELECT id,full_name,email,password_salt,password_hash,email_verified,account_active FROM users WHERE email = ?").bind(email).first();
+    const user = await env.DB.prepare("SELECT id,full_name,email,password_salt,password_hash,email_verified,account_active,auth_version,deleted_at FROM users WHERE email = ?").bind(email).first();
     const passwordHash = await createPasswordHash(password, user ? user.password_salt : "00000000000000000000000000000000");
     if (!user || !constantTimeEqual(passwordHash, user.password_hash)) throw new ApiError(401, "INVALID_CREDENTIALS", "Email or password is incorrect.");
+    if (user.deleted_at) throw new ApiError(403, "ACCOUNT_DELETED", "This account has been deleted. Contact support to request recovery.");
     if (!user.email_verified) throw new ApiError(403, "EMAIL_NOT_VERIFIED", "Verify your email before signing in.");
     if (Number(user.account_active) !== 1) throw new ApiError(403, "ACCOUNT_DISABLED", "This 414Unlock account is currently deactivated. Contact support.");
     return json({ ok: true, token: await issueToken(user, env), user: publicUser(user) }, 200, headers);
@@ -281,8 +297,8 @@ async function redeemAppCode(request, env, headers) {
     const codeHash = await keyedHash("app:" + code, env), now = Math.floor(Date.now() / 1000);
     const used = await env.DB.prepare("UPDATE app_codes SET used_at = ? WHERE code_hash = ? AND used_at IS NULL AND expires_at > ? RETURNING user_id").bind(now, codeHash, now).first();
     if (!used) throw new ApiError(400, "INVALID_APP_CODE", "The sign-in code is invalid or expired. Start sign-in again.");
-    const user = await env.DB.prepare("SELECT id,full_name,email,email_verified,account_active FROM users WHERE id = ?").bind(used.user_id).first();
-    if (!user || !user.email_verified) throw new ApiError(401, "AUTH_REQUIRED", "Sign in again to continue.");
+    const user = await env.DB.prepare("SELECT id,full_name,email,email_verified,account_active,auth_version,deleted_at FROM users WHERE id = ?").bind(used.user_id).first();
+    if (!user || user.deleted_at || !user.email_verified) throw new ApiError(401, "AUTH_REQUIRED", "Sign in again to continue.");
     if (Number(user.account_active) !== 1) throw new ApiError(403, "ACCOUNT_DISABLED", "This 414Unlock account is currently deactivated. Contact support.");
     return json({ ok: true, token: await issueToken(user, env), user: publicUser(user) }, 200, headers);
   } catch (error) { throwOrReturn(error, headers); }
@@ -731,41 +747,225 @@ async function createServiceOrder(request, env, headers) {
 
 async function listAdminUsers(request, env, headers) {
   try {
-    const admin = await requireAdmin(request, env), url = new URL(request.url);
-    const q = String(url.searchParams.get("q") || "").trim().slice(0, 80), like = "%" + q + "%";
-    const result = await env.DB.prepare(
-      `SELECT u.id,u.full_name,u.email,u.email_verified,u.account_active,u.account_status_note,u.account_status_updated_at,u.created_at,
+    const admin=await requireAdmin(request,env),url=new URL(request.url);
+    const q=String(url.searchParams.get("q")||"").trim().slice(0,80),like="%"+q+"%",status=String(url.searchParams.get("status")||"all");
+    if(!["all","active","inactive","deleted"].includes(status))throw new ApiError(400,"INVALID_USER_FILTER","Choose a valid account filter.");
+    const result=await env.DB.prepare(
+      `SELECT u.id,u.full_name,u.email,u.email_verified,u.account_active,u.account_status_note,u.account_status_updated_at,u.created_at,u.deleted_at,u.deleted_note,
         (SELECT v.status FROM verification_submissions v WHERE v.user_id=u.id ORDER BY v.submitted_at DESC LIMIT 1) AS verification_status,
         COALESCE(w.balance,0) AS wallet_balance,
         (SELECT COUNT(*) FROM service_orders o WHERE o.user_id=u.id) AS order_count,
         (SELECT COUNT(*) FROM topup_requests t WHERE t.user_id=u.id) AS topup_count
        FROM users u LEFT JOIN wallets w ON w.user_id=u.id
        WHERE (?='' OR u.email LIKE ? OR u.full_name LIKE ?)
-       ORDER BY u.created_at DESC LIMIT 100`
-    ).bind(q, like, like).all();
-    return json({ ok:true, adminEmail:admin.email, users:(result.results||[]).map((u)=>({
+        AND (?='all' OR (?='deleted' AND u.deleted_at IS NOT NULL) OR (?='inactive' AND u.deleted_at IS NULL AND u.account_active=0) OR (?='active' AND u.deleted_at IS NULL AND u.account_active=1))
+       ORDER BY CASE WHEN u.deleted_at IS NOT NULL THEN 2 WHEN u.account_active=0 THEN 1 ELSE 0 END,u.created_at DESC LIMIT 100`
+    ).bind(q,like,like,status,status,status,status).all();
+    return json({ok:true,adminEmail:admin.email,users:(result.results||[]).map(u=>({
       id:u.id,fullName:u.full_name,email:u.email,emailVerified:Boolean(u.email_verified),
-      accountActive:Number(u.account_active)===1,accountStatusNote:u.account_status_note||"",
-      accountStatusUpdatedAt:u.account_status_updated_at,createdAt:u.created_at,
-      verificationStatus:u.verification_status||"not_submitted",walletBalance:Number(u.wallet_balance||0),
+      accountActive:Number(u.account_active)===1&&!u.deleted_at,deleted:Boolean(!!u.deleted_at),deletedAt:u.deleted_at,
+      deletedNote:u.deleted_note||"",accountStatusNote:u.account_status_note||"",accountStatusUpdatedAt:u.account_status_updated_at,
+      createdAt:u.created_at,verificationStatus:u.verification_status||"not_submitted",walletBalance:Number(u.wallet_balance||0),
       orderCount:Number(u.order_count||0),topupCount:Number(u.topup_count||0)
-    })) },200,headers);
-  } catch(error){throwOrReturn(error,headers);}
+    }))},200,headers);
+  }catch(error){throwOrReturn(error,headers);}
 }
-async function updateAdminUserStatus(request, env, headers, id) {
-  try {
+async function getAdminUserDetails(request,env,headers,id){
+  try{
+    await requireAdmin(request,env);
+    const user=await env.DB.prepare(
+      `SELECT u.id,u.full_name,u.email,u.email_verified,u.created_at,u.account_active,u.account_status_note,
+        u.account_status_updated_at,u.account_status_updated_by,u.deleted_at,u.deleted_by,u.deleted_note,
+        COALESCE(w.balance,0) AS wallet_balance
+       FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=?`
+    ).bind(id).first();
+    if(!user)throw new ApiError(404,"USER_NOT_FOUND","That member account could not be found.");
+    const [verification,orders,topups,transactions,tickets]=await Promise.all([
+      env.DB.prepare("SELECT id,legal_name,country,applicant_type,status,review_note,submitted_at,reviewed_at,reviewed_by FROM verification_submissions WHERE user_id=? ORDER BY submitted_at DESC LIMIT 20").bind(id).all(),
+      env.DB.prepare("SELECT id,service_key,model_key,device_model,masked_identifier,amount_due,status,provider_reference,admin_note,created_at,updated_at FROM service_orders WHERE user_id=? ORDER BY created_at DESC LIMIT 30").bind(id).all(),
+      env.DB.prepare("SELECT id,amount,request_reference,provider_reference,status,created_at,submitted_at,reviewed_at,review_note FROM topup_requests WHERE user_id=? ORDER BY created_at DESC LIMIT 30").bind(id).all(),
+      env.DB.prepare("SELECT id,kind,amount,balance_after,reference,description,created_at,created_by FROM wallet_transactions WHERE user_id=? ORDER BY created_at DESC LIMIT 40").bind(id).all(),
+      env.DB.prepare("SELECT id,subject,status,created_at,updated_at FROM support_tickets WHERE user_id=? ORDER BY updated_at DESC LIMIT 20").bind(id).all()
+    ]);
+    return json({ok:true,user:{
+      id:user.id,fullName:user.full_name,email:user.email,emailVerified:Boolean(user.email_verified),createdAt:user.created_at,
+      accountActive:Number(user.account_active)===1&&!user.deleted_at,deleted:Boolean(user.deleted_at),deletedAt:user.deleted_at,deletedBy:user.deleted_by||"",
+      deletedNote:user.deleted_note||"",accountStatusNote:user.account_status_note||"",accountStatusUpdatedAt:user.account_status_updated_at,
+      accountStatusUpdatedBy:user.account_status_updated_by||"",walletBalance:Number(user.wallet_balance||0)
+    },history:{
+      verification:(verification.results||[]).map(v=>({id:v.id,legalName:v.legal_name,country:v.country,applicantType:v.applicant_type,status:v.status,reviewNote:v.review_note||"",submittedAt:v.submitted_at,reviewedAt:v.reviewed_at,reviewedBy:v.reviewed_by||""})),
+      orders:(orders.results||[]).map(o=>({id:o.id,serviceKey:o.service_key,modelKey:o.model_key,deviceModel:o.device_model,maskedIdentifier:o.masked_identifier,amountDue:Number(o.amount_due),status:o.status,providerReference:o.provider_reference||"",adminNote:o.admin_note||"",createdAt:o.created_at,updatedAt:o.updated_at})),
+      topups:(topups.results||[]).map(t=>({id:t.id,amount:Number(t.amount),requestReference:t.request_reference,providerReference:t.provider_reference||"",status:t.status,createdAt:t.created_at,submittedAt:t.submitted_at,reviewedAt:t.reviewed_at,reviewNote:t.review_note||""})),
+      walletTransactions:(transactions.results||[]).map(t=>({id:t.id,kind:t.kind,amount:Number(t.amount),balanceAfter:Number(t.balance_after),reference:t.reference,description:t.description,createdAt:t.created_at,createdBy:t.created_by||""})),
+      supportTickets:(tickets.results||[]).map(t=>({id:t.id,subject:t.subject,status:t.status,createdAt:t.created_at,updatedAt:t.updated_at}))
+    }},200,headers);
+  }catch(error){throwOrReturn(error,headers);}
+}
+async function updateAdminUserProfile(request,env,headers,id){
+  try{
+    const admin=await requireAdmin(request,env),body=await readJson(request);
+    const fullName=typeof body.fullName==="string"?body.fullName.trim():"",email=typeof body.email==="string"?body.email.trim().toLowerCase():"";
+    if(fullName.length<2||fullName.length>120)throw new ApiError(400,"INVALID_NAME","Enter a name between 2 and 120 characters.");
+    if(!validEmail(email))throw new ApiError(400,"INVALID_EMAIL","Enter a valid email address.");
+    const target=await env.DB.prepare("SELECT id,email,deleted_at FROM users WHERE id=?").bind(id).first();
+    if(!target)throw new ApiError(404,"USER_NOT_FOUND","That member account could not be found.");
+    if(isAdminEmail(target.email,env)&&email!==target.email.toLowerCase())throw new ApiError(403,"ADMIN_ACCOUNT_PROTECTED","The configured administrator email cannot be changed from member management.");
+    if(email!==target.email.toLowerCase()&&isAdminEmail(email,env))throw new ApiError(409,"EMAIL_ALREADY_IN_USE","That email is reserved for an administrator account.");
+    const changedEmail=email!==target.email.toLowerCase(),now=Math.floor(Date.now()/1000);
+    if(changedEmail){
+      if(!env.RESEND_API_KEY||!env.FROM_EMAIL)throw new ApiError(503,"EMAIL_NOT_CONFIGURED","Email delivery must be configured before changing a member's email address.");
+      const code=await makeEmailCode(env,id,"verify_email");
+      try{
+        await sendEmail(env,email,"Verify your new 414Unlock email address",
+          "<div style='font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0d1337'><h2>Verify your 414Unlock email</h2><p>Hello "+htmlEscape(fullName)+",</p><p>Your account email was changed by an administrator. Enter this code on the sign-in verification screen.</p><p style='font-size:30px;font-weight:700;letter-spacing:8px'>"+code+"</p></div>");
+      }catch(error){await env.DB.prepare("DELETE FROM email_codes WHERE user_id=? AND purpose='verify_email'").bind(id).run();throw error;}
+    }
+    const update=await env.DB.prepare(
+      "UPDATE users SET full_name=?,email=?,email_verified=CASE WHEN lower(email)<>? THEN 0 ELSE email_verified END,auth_version=auth_version+CASE WHEN lower(email)<>? THEN 1 ELSE 0 END WHERE id=?"
+    ).bind(fullName,email,email,email,id).run();
+    if(!update.meta||update.meta.changes!==1)throw new ApiError(409,"PROFILE_UPDATE_CONFLICT","The member profile could not be updated.");
+    if(changedEmail)await env.DB.prepare("DELETE FROM email_codes WHERE user_id=? AND purpose='verify_email' AND created_at<> (SELECT MAX(created_at) FROM email_codes WHERE user_id=? AND purpose='verify_email')").bind(id,id).run();
+    await env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) VALUES (?,?,?,?,?,?)").bind(randomHex(16),admin.email,"user_profile_updated",id,"email_changed="+changedEmail+"; name_updated=true",now).run();
+    return json({ok:true,message:changedEmail?"Profile updated. A verification code was sent to the new email address.":"Member profile updated.",emailChanged:changedEmail},200,headers);
+  }catch(error){
+    if(String(error&&error.message||"").toLowerCase().includes("unique"))throw new ApiError(409,"EMAIL_ALREADY_IN_USE","That email address is already used by another account.");
+    throwOrReturn(error,headers);
+  }
+}
+async function updateAdminUserStatus(request,env,headers,id){
+  try{
     const admin=await requireAdmin(request,env),body=await readJson(request);
     if(typeof body.active!=="boolean")throw new ApiError(400,"INVALID_ACCOUNT_STATUS","Choose whether the account should be active or deactivated.");
-    const target=await env.DB.prepare("SELECT id,email,account_active FROM users WHERE id=?").bind(id).first();
+    const target=await env.DB.prepare("SELECT id,email,account_active,deleted_at FROM users WHERE id=?").bind(id).first();
     if(!target)throw new ApiError(404,"USER_NOT_FOUND","That user account could not be found.");
-    const adminEmails=(env.ADMIN_EMAILS||"").split(",").map((x)=>x.trim().toLowerCase()).filter(Boolean);
-    if(!body.active&&adminEmails.includes(String(target.email).toLowerCase()))throw new ApiError(403,"ADMIN_ACCOUNT_PROTECTED","An administrator account cannot be deactivated from user management.");
+    if(target.deleted_at)throw new ApiError(409,"ACCOUNT_DELETED","Restore this deleted account before changing its active status.");
+    if(!body.active&&isAdminEmail(target.email,env))throw new ApiError(403,"ADMIN_ACCOUNT_PROTECTED","An administrator account cannot be deactivated from user management.");
     const note=typeof body.note==="string"?body.note.trim().slice(0,500):"",now=Math.floor(Date.now()/1000);
-    const result=await env.DB.prepare("UPDATE users SET account_active=?,account_status_note=?,account_status_updated_at=?,account_status_updated_by=? WHERE id=?").bind(body.active?1:0,note,now,admin.email,id).run();
+    const result=await env.DB.prepare("UPDATE users SET account_active=?,account_status_note=?,account_status_updated_at=?,account_status_updated_by=?,auth_version=auth_version+1 WHERE id=?").bind(body.active?1:0,note,now,admin.email,id).run();
     if(!result.meta||result.meta.changes!==1)throw new ApiError(409,"ACCOUNT_STATUS_CONFLICT","The account status could not be changed. Refresh and try again.");
     await env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) VALUES (?,?,?,?,?,?)").bind(randomHex(16),admin.email,body.active?"user_activated":"user_deactivated",id,note,now).run();
-    return json({ok:true,user:{id:target.id,email:target.email,active:body.active},message:body.active?"User account activated.":"User account deactivated. Existing sessions are now blocked."},200,headers);
-  } catch(error){throwOrReturn(error,headers);}
+    return json({ok:true,user:{id:target.id,email:target.email,active:body.active},message:body.active?"User account activated.":"User account deactivated. All existing sessions have been revoked."},200,headers);
+  }catch(error){throwOrReturn(error,headers);}
+}
+async function deleteAdminUser(request,env,headers,id){
+  try{
+    const admin=await requireAdmin(request,env),body=await readJson(request),note=typeof body.note==="string"?body.note.trim().slice(0,500):"Deleted by administrator";
+    const target=await env.DB.prepare("SELECT id,email,deleted_at FROM users WHERE id=?").bind(id).first();
+    if(!target)throw new ApiError(404,"USER_NOT_FOUND","That member account could not be found.");
+    if(isAdminEmail(target.email,env))throw new ApiError(403,"ADMIN_ACCOUNT_PROTECTED","An administrator account cannot be deleted from member management.");
+    if(target.deleted_at)throw new ApiError(409,"ACCOUNT_ALREADY_DELETED","This member account is already deleted.");
+    const now=Math.floor(Date.now()/1000);
+    await env.DB.batch([
+      env.DB.prepare("UPDATE users SET deleted_at=?,deleted_by=?,deleted_note=?,account_active=0,auth_version=auth_version+1,account_status_note=?,account_status_updated_at=?,account_status_updated_by=? WHERE id=? AND deleted_at IS NULL").bind(now,admin.email,note,note,now,admin.email,id),
+      env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) VALUES (?,?,?,?,?,?)").bind(randomHex(16),admin.email,"user_deleted",id,note,now)
+    ]);
+    return json({ok:true,message:"Member deleted from active use. Financial and service history is retained and the account can be restored."},200,headers);
+  }catch(error){throwOrReturn(error,headers);}
+}
+async function restoreAdminUser(request,env,headers,id){
+  try{
+    const admin=await requireAdmin(request,env),body=await readJson(request);
+    const target=await env.DB.prepare("SELECT id,email,deleted_at FROM users WHERE id=?").bind(id).first();
+    if(!target)throw new ApiError(404,"USER_NOT_FOUND","That member account could not be found.");
+    if(!target.deleted_at)throw new ApiError(409,"ACCOUNT_NOT_DELETED","This member account is not deleted.");
+    const note=typeof body.note==="string"?body.note.trim().slice(0,500):"Restored by administrator",now=Math.floor(Date.now()/1000);
+    await env.DB.batch([
+      env.DB.prepare("UPDATE users SET deleted_at=NULL,deleted_by=NULL,deleted_note='',account_active=1,account_status_note=?,account_status_updated_at=?,account_status_updated_by=?,auth_version=auth_version+1 WHERE id=? AND deleted_at IS NOT NULL").bind(note,now,admin.email,id),
+      env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) VALUES (?,?,?,?,?,?)").bind(randomHex(16),admin.email,"user_restored",id,note,now)
+    ]);
+    return json({ok:true,message:"Member account restored. The member can sign in again after any required email verification."},200,headers);
+  }catch(error){throwOrReturn(error,headers);}
+}
+async function adjustAdminUserWallet(request,env,headers,id){
+  try{
+    const admin=await requireAdmin(request,env),body=await readJson(request),amount=Number(body.amount),reason=typeof body.reason==="string"?body.reason.trim().slice(0,250):"";
+    if(!Number.isSafeInteger(amount)||amount===0||Math.abs(amount)>1000000)throw new ApiError(400,"INVALID_WALLET_ADJUSTMENT","Enter a whole-number adjustment between -1,000,000 and 1,000,000.");
+    if(reason.length<3)throw new ApiError(400,"WALLET_REASON_REQUIRED","Enter a reason for the wallet adjustment.");
+    const target=await env.DB.prepare("SELECT id,deleted_at FROM users WHERE id=?").bind(id).first();
+    if(!target)throw new ApiError(404,"USER_NOT_FOUND","That member account could not be found.");
+    if(target.deleted_at)throw new ApiError(409,"ACCOUNT_DELETED","Restore the member account before adjusting its wallet.");
+    const now=Math.floor(Date.now()/1000),reference="admin-adjustment:"+randomHex(16),txId=randomHex(16),auditId=randomHex(16);
+    await env.DB.prepare("INSERT OR IGNORE INTO wallets (user_id,balance,created_at,updated_at) VALUES (?,0,?,?)").bind(id,now,now).run();
+    const results=await env.DB.batch([
+      env.DB.prepare("UPDATE wallets SET balance=balance+?,updated_at=? WHERE user_id=? AND balance+?>=0 AND balance+?<=100000000").bind(amount,now,id,amount,amount),
+      env.DB.prepare("INSERT INTO wallet_transactions (id,user_id,kind,amount,balance_after,reference,description,created_at,created_by) SELECT ?,user_id,'adjustment',?,balance,?,?,?,? FROM wallets WHERE user_id=? AND changes()=1").bind(txId,amount,reference,reason,now,admin.email,id),
+      env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) SELECT ?,?,?,?, ?,? WHERE changes()=1").bind(auditId,admin.email,"wallet_adjustment",id,"amount="+amount+"; reason="+reason,now)
+    ]);
+    if(!results[0].meta||results[0].meta.changes!==1)throw new ApiError(409,"WALLET_BALANCE_LIMIT","The adjustment would make the wallet negative or exceed the permitted balance.");
+    const wallet=await env.DB.prepare("SELECT balance FROM wallets WHERE user_id=?").bind(id).first();
+    return json({ok:true,balance:Number(wallet.balance),message:"Wallet adjustment saved to the transaction ledger."},200,headers);
+  }catch(error){throwOrReturn(error,headers);}
+}
+async function createPasswordReset(env,user,admin){
+  if(!env.RESEND_API_KEY||!env.FROM_EMAIL)throw new ApiError(503,"EMAIL_NOT_CONFIGURED","Password recovery email is not configured yet.");
+  const token=randomHex(32),tokenHash=await keyedHash("password-reset:"+token,env),now=Math.floor(Date.now()/1000);
+  await env.DB.prepare("DELETE FROM password_reset_tokens WHERE user_id=?").bind(user.id).run();
+  await env.DB.prepare("INSERT INTO password_reset_tokens (id,user_id,token_hash,expires_at,used_at,used_by,created_at) VALUES (?,?,?, ?,NULL,NULL,?)").bind(randomHex(16),user.id,tokenHash,now+1800,now).run();
+  const origin=(env.SITE_ORIGIN||"https://squashberry.github.io").split(",")[0].trim().replace(/\/+$/,"");
+  const resetUrl=origin+"/414unlock-site/forgot.html?token="+encodeURIComponent(token);
+  await sendEmail(env,user.email,"Reset your 414Unlock password","<div style='font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0d1337'><h2>Reset your 414Unlock password</h2><p>Hello "+htmlEscape(user.full_name)+",</p><p>Use the secure link below to choose a new password. It expires in 30 minutes and works once.</p><p><a href='"+htmlEscape(resetUrl)+"'>Reset my password</a></p><p>If you did not request this, ignore this email.</p></div>");
+  if(admin)await env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) VALUES (?,?,?,?,?,?)").bind(randomHex(16),admin.email,"password_reset_sent",user.id,"A password reset link was sent.",now).run();
+}
+async function requestPasswordReset(request,env,headers){
+  try{
+    const body=await readJson(request),email=typeof body.email==="string"?body.email.trim().toLowerCase():"";
+    if(validEmail(email)){
+      const user=await env.DB.prepare("SELECT id,email,full_name,email_verified,account_active,deleted_at FROM users WHERE email=?").bind(email).first();
+      if(user&&user.email_verified&&Number(user.account_active)===1&&!user.deleted_at){
+        try{await createPasswordReset(env,user,null);}catch(error){console.error("414Unlock recovery email failed:",safeErrorCode(error));}
+      }
+    }
+    return json({ok:true,message:"If an active, verified account exists for that email, a password reset link will be sent."},200,headers);
+  }catch(error){throwOrReturn(error,headers);}
+}
+async function resetPassword(request,env,headers){
+  try{
+    const body=await readJson(request),token=typeof body.token==="string"?body.token.trim():"",password=typeof body.password==="string"?body.password:"";
+    if(!/^[a-f0-9]{64}$/i.test(token)||password.length<10||password.length>128)throw new ApiError(400,"INVALID_RESET_REQUEST","The reset link or new password is invalid.");
+    const tokenHash=await keyedHash("password-reset:"+token,env),now=Math.floor(Date.now()/1000);
+    const row=await env.DB.prepare("SELECT id,user_id FROM password_reset_tokens WHERE token_hash=? AND used_at IS NULL AND expires_at>?").bind(tokenHash,now).first();
+    if(!row)throw new ApiError(400,"RESET_LINK_EXPIRED","This password reset link has expired or has already been used. Request a new one.");
+    const salt=randomHex(16),passwordHash=await createPasswordHash(password,salt),useId=randomHex(16);
+    const results=await env.DB.batch([
+      env.DB.prepare("UPDATE password_reset_tokens SET used_at=?,used_by=? WHERE id=? AND used_at IS NULL AND expires_at>?").bind(now,useId,row.id,now),
+      env.DB.prepare("UPDATE users SET password_salt=?,password_hash=?,auth_version=auth_version+1 WHERE id=? AND deleted_at IS NULL AND EXISTS(SELECT 1 FROM password_reset_tokens WHERE id=? AND used_by=?)").bind(salt,passwordHash,row.user_id,row.id,useId),
+      env.DB.prepare("DELETE FROM password_reset_tokens WHERE user_id=? AND id<>?").bind(row.user_id,row.id)
+    ]);
+    if(!results[0].meta||results[0].meta.changes!==1||!results[1].meta||results[1].meta.changes!==1)throw new ApiError(400,"RESET_LINK_EXPIRED","This password reset link is invalid or has already been used.");
+    return json({ok:true,message:"Your password has been changed. Sign in with your new password."},200,headers);
+  }catch(error){throwOrReturn(error,headers);}
+}
+async function sendAdminUserPasswordReset(request,env,headers,id){
+  try{
+    const admin=await requireAdmin(request,env);
+    const user=await env.DB.prepare("SELECT id,email,full_name,email_verified,account_active,deleted_at FROM users WHERE id=?").bind(id).first();
+    if(!user)throw new ApiError(404,"USER_NOT_FOUND","That member account could not be found.");
+    if(!user.email_verified||Number(user.account_active)!==1||user.deleted_at)throw new ApiError(409,"ACCOUNT_NOT_READY","Activate and verify this member account before sending password recovery.");
+    await createPasswordReset(env,user,admin);
+    return json({ok:true,message:"A password reset link has been sent to the member's registered email."},200,headers);
+  }catch(error){throwOrReturn(error,headers);}
+}
+async function bootstrapFirstAdmin(request,env,headers){
+  try{
+    const body=await readJson(request),email=typeof body.email==="string"?body.email.trim().toLowerCase():"",fullName=typeof body.fullName==="string"?body.fullName.trim():"",password=typeof body.password==="string"?body.password:"",token=typeof body.token==="string"?body.token.trim():"";
+    if(!validEmail(email)||!isAdminEmail(email,env))throw new ApiError(403,"ADMIN_BOOTSTRAP_EMAIL","Use the administrator email configured for this service.");
+    if(fullName.length<2||fullName.length>120||password.length<12||password.length>128||!/^[a-f0-9]{64}$/i.test(token))throw new ApiError(400,"INVALID_BOOTSTRAP_DETAILS","Enter your name, the private setup token, and a password of at least 12 characters.");
+    const userCount=await env.DB.prepare("SELECT COUNT(*) AS count FROM users").first();
+    if(Number(userCount&&userCount.count)!==0)throw new ApiError(409,"ADMIN_ALREADY_INITIALISED","The initial administrator has already been created. Sign in instead.");
+    const tokenHash=await sha256Hex("414unlock-admin-bootstrap:"+token),now=Math.floor(Date.now()/1000);
+    const bootstrap=await env.DB.prepare("SELECT id FROM admin_bootstrap_tokens WHERE token_hash=? AND used_at IS NULL AND expires_at>?").bind(tokenHash,now).first();
+    if(!bootstrap)throw new ApiError(403,"INVALID_BOOTSTRAP_TOKEN","The private setup link is invalid or expired. Request a new setup link.");
+    const id=randomHex(16),salt=randomHex(16),passwordHash=await createPasswordHash(password,salt);
+    const results=await env.DB.batch([
+      env.DB.prepare("INSERT INTO users (id,full_name,email,password_salt,password_hash,email_verified,created_at,account_active) SELECT ?,?,?,?,?,1,?,1 WHERE NOT EXISTS(SELECT 1 FROM users) AND EXISTS(SELECT 1 FROM admin_bootstrap_tokens WHERE id=? AND used_at IS NULL AND expires_at>?)").bind(id,fullName,email,salt,passwordHash,now,bootstrap.id,now),
+      env.DB.prepare("INSERT OR IGNORE INTO wallets (user_id,balance,created_at,updated_at) SELECT id,0,?,? FROM users WHERE id=?").bind(now,now,id),
+      env.DB.prepare("UPDATE admin_bootstrap_tokens SET used_at=? WHERE id=? AND used_at IS NULL AND EXISTS(SELECT 1 FROM users WHERE id=?)").bind(now,bootstrap.id,id),
+      env.DB.prepare("INSERT INTO admin_audit_log (id,actor_email,action,target_user_id,details,created_at) SELECT ?,?,?,?, ?,? WHERE EXISTS(SELECT 1 FROM users WHERE id=?)").bind(randomHex(16),email,"admin_bootstrap",id,"Initial administrator account created.",now,id)
+    ]);
+    if(!results[0].meta||results[0].meta.changes!==1)throw new ApiError(409,"ADMIN_ALREADY_INITIALISED","The initial administrator has already been created. Sign in instead.");
+    const user=await env.DB.prepare("SELECT id,full_name,email,email_verified,account_active,auth_version FROM users WHERE id=?").bind(id).first();
+    return json({ok:true,token:await issueToken(user,env),user:publicUser(user),message:"Administrator account created. Keep your password safe and delete this setup link."},201,headers);
+  }catch(error){throwOrReturn(error,headers);}
 }
 
 async function adminQueue(request, env, headers) {
