@@ -77,7 +77,7 @@
     }
     if(returnTarget==="admin"){location.href="admin.html";return;}
     if(returnTarget==="review"){location.href="review.html";return;}
-    if(returnTarget==="mobile"){location.href="mobile.html";return;}
+    if(returnTarget==="mobile"){location.href="mobile.html?splash=1";return;}
     if(returnTarget==="payment"&&paymentLaunch){location.href="payment.html?launch="+encodeURIComponent(paymentLaunch)+(appState?"&state="+encodeURIComponent(appState):"");return;}
     if(returnTarget==="imei"){location.href="dashboard.html#new-order";return;}
     location.href="dashboard.html";

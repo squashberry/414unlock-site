@@ -2,7 +2,7 @@
 "use strict";
 var button=document.getElementById("install-action"),note=document.getElementById("install-instructions"),promptEvent=null,installed=false;
 var ua=navigator.userAgent||"",ios=/iPhone|iPad|iPod/i.test(ua)||(/Macintosh/i.test(ua)&&navigator.maxTouchPoints>1),android=/Android/i.test(ua),mobile=ios||android||(/Mobile/i.test(ua)&&navigator.maxTouchPoints>0),standalone=window.matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
-function openApp(){location.href="./mobile.html";}
+function openApp(){location.href="./mobile.html?splash=1";}
 function register(){if("serviceWorker" in navigator)navigator.serviceWorker.register("./pwa-sw.js",{scope:"./"}).catch(function(){});}
 register();
 if(!mobile){

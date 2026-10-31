@@ -1,5 +1,5 @@
-const CACHE_NAME="414unlock-mobile-shell-v4";
-const SHELL=["./mobile.html","./mobile.css","./mobile.js","./site-config.js","./auth-session.js","./mobile.webmanifest","./install.html","./install.js","./pwa-icon-192.png","./pwa-icon-512.png","./favicon.svg"];
+const CACHE_NAME="414unlock-mobile-shell-v5";
+const SHELL=["./mobile.html","./mobile.css","./mobile.js","./site-config.js","./auth-session.js","./splash.js","./mobile.webmanifest","./install.html","./install.js","./pwa-icon-192.png","./pwa-icon-512.png","./favicon.svg"];
 self.addEventListener("install",event=>event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener("activate",event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith("414unlock-mobile-shell-")&&key!==CACHE_NAME).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener("fetch",event=>{

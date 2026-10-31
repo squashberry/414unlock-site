@@ -2,7 +2,7 @@
   "name": "414Unlock Mobile",
   "short_name": "414Unlock",
   "description": "Your 414Unlock wallet and device order tracker.",
-  "start_url": "./mobile.html",
+  "start_url": "./mobile.html?splash=1",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
