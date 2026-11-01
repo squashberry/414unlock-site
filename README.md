@@ -23,7 +23,7 @@ Edit \`site-config.js\` after the Worker is deployed:
 \`\`\`js
 window.UNLOCK414_CONFIG = Object.freeze({
   API_BASE_URL: "https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev",
-  DOWNLOAD_URL: "https://github.com/squashberry/414unlock-site/releases/latest",
+  DOWNLOAD_URL: "https://github.com/squashberry/414unlock-site/releases/latest/download/414Unlock_Setup.exe",
   APP_CALLBACK: "414unlock://auth/callback",
   TERMS_VERSION: "2026-10-30",
   SUPPORT_EMAIL: "414unlock@gmail.com"
