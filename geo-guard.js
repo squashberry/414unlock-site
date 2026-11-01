@@ -3,6 +3,10 @@
   if(window.__414UnlockCountryGuard)return;
   window.__414UnlockCountryGuard=true;
   var cfg=window.UNLOCK414_CONFIG||{},api=String(cfg.API_BASE_URL||"").replace(/\/+$/,"");
+  // Allow major search crawlers and social preview bots to read public page content.
+  // This presentation-layer exception does not grant account or API permissions.
+  var crawlerUA=(window.navigator&&window.navigator.userAgent)||"";
+  if(/(?:Googlebot|Google-InspectionTool|GoogleOther|Googlebot-Image|bingbot|BingPreview|DuckDuckBot|Applebot|YandexBot|Slurp|facebookexternalhit|Twitterbot|LinkedInBot)/i.test(crawlerUA))return;
   var root=document.documentElement;
   root.style.visibility="visible";
   function blocked(){
