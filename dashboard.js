@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 var cfg=window.UNLOCK414_CONFIG||{},api=(cfg.API_BASE_URL||"").replace(/\/+$/,""),session=window.UNLOCK414_SESSION||null,token=session&&session.getToken?session.getToken():(localStorage.getItem("414unlock_token")||sessionStorage.getItem("414unlock_token"));
-var currentTopup=null,verificationApproved=false,accountEmail="",activeImeiRequestId=null,pendingImei="";
+var currentTopup=null,verificationApproved=false,isUnlocker=false,accountEmail="",activeImeiRequestId=null,pendingImei="";
 var prices={iphone_6:1550,iphone_7:1550,iphone_8:1550,iphone_x:1550,iphone_xr:1550,iphone_11_12:2050,iphone_13_14:2550,iphone_15:3050,iphone_16:3550};
 var modelNames={iphone_6:"iPhone 5S / 6 / 6 Plus / 6S / 6S Plus / SE (1st gen)",iphone_7:"iPhone 7 / 7 Plus",iphone_8:"iPhone 8 / 8 Plus",iphone_x:"iPhone X",iphone_xr:"iPhone XR / XS / XS Max / SE (2nd and 3rd gen)",iphone_11_12:"iPhone 11 & 12 Series",iphone_13_14:"iPhone 13 & 14 Series",iphone_15:"iPhone 15 Series",iphone_16:"iPhone 16 / 16e Series"};
 var serviceNames={unlock:"iPhone unlock service",imei_check:"IMEI check"};
@@ -32,11 +32,84 @@ disableForms(!api||!verificationApproved);
 if(!api)disableForms(true);
 }
 function node(tag,cls,txt){var n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=String(txt);return n;}
-function renderRows(id,items,type){var host=el(id);host.textContent="";if(!items||!items.length){host.appendChild(node("div","empty-records",type==="transactions"?"No wallet activity yet.":type==="topups"?"No top-up requests yet.":"No service requests yet."));return;}
-items.forEach(function(item){var row=node("div","record-row"),main=node("div","record-main"),amount=node("div","record-amount");if(type==="transactions"){main.appendChild(node("strong",null,item.description||stateLabel(item.kind)));main.appendChild(node("p",null,dateText(item.createdAt)+" · "+stateLabel(item.kind)));var n=Number(item.amount||0);amount.textContent=(n>0?"+":"") + fmt(n);amount.classList.add(n>=0?"positive":"negative");}
-else if(type==="topups"){main.appendChild(node("strong",null,fmt(item.amount)+" · "+(item.requestReference||"Top-up")));main.appendChild(node("p",null,(item.providerReference?"Payment ref: "+item.providerReference+" · ":"")+"Created "+dateText(item.createdAt)));var state=node("span","record-state "+item.status,stateLabel(item.status));main.appendChild(state);if(item.status==="awaiting_payment"){var resume=node("button","resume-topup","Submit payment reference");resume.type="button";resume.addEventListener("click",function(){currentTopup=item;el("topup-ref-display").textContent=item.requestReference||"Reference unavailable";el("topup-followup").hidden=false;el("topup-followup").scrollIntoView({behavior:"smooth",block:"center"});});main.appendChild(resume);}amount.textContent=stateLabel(item.status);amount.classList.add("record-amount");}
-else{main.appendChild(node("strong",null,(item.serviceName||serviceNames[item.serviceKey]||"Service")+" · "+(item.deviceModel||modelNames[item.modelKey]||"iPhone")));main.appendChild(node("p",null,(item.maskedIdentifier||"Identifier protected")+" · "+dateText(item.createdAt)));main.appendChild(node("span","record-state "+item.status,stateLabel(item.status)));amount.textContent=fmt(item.amountDue);amount.classList.add("record-amount");}
-row.appendChild(main);row.appendChild(amount);host.appendChild(row);});}
+function unlockStatusText(status){return ({submitted:"Request received",registered:"Registered",processing:"Unlock in progress",completed:"Successfully unlocked",rejected:"Unable to complete"})[status]||stateLabel(status);}
+function unlockStatusTransitions(status){return ({submitted:["registered","rejected"],registered:["processing","rejected"],processing:["completed","rejected"],completed:[],rejected:[]})[status]||[];}
+function renderUnlockerTools(item,main){
+ var tools=node("div","unlocker-tools");
+ tools.appendChild(node("p","unlocker-hint","Share a live status link with the device owner. Generating a new link invalidates the previous link."));
+ var actions=node("div","unlocker-actions-row");
+ var linkButton=node("button","unlocker-action","Generate customer link");
+ linkButton.type="button";
+ linkButton.addEventListener("click",function(){createCustomerStatusLink(item,linkButton,tools);});
+ actions.appendChild(linkButton);
+ var next=unlockStatusTransitions(item.status);
+ if(next.length){
+  var select=document.createElement("select");select.className="unlocker-status-select";select.setAttribute("aria-label","Next unlock status");
+  var placeholder=document.createElement("option");placeholder.value="";placeholder.textContent="Choose next status";select.appendChild(placeholder);
+  next.forEach(function(status){var option=document.createElement("option");option.value=status;option.textContent=unlockStatusText(status);select.appendChild(option);});
+  var updateButton=node("button","unlocker-action unlocker-action-secondary","Update status");updateButton.type="button";updateButton.disabled=true;
+  select.addEventListener("change",function(){updateButton.disabled=!select.value;});
+  updateButton.addEventListener("click",function(){updateUnlockerStatus(item,select,updateButton);});
+  actions.appendChild(select);actions.appendChild(updateButton);
+ }
+ tools.appendChild(actions);main.appendChild(tools);
+}
+async function createCustomerStatusLink(item,button,tools){
+ var oldText=button.textContent;button.disabled=true;button.textContent="Generating…";
+ try{
+  var result=await request("/api/orders/"+encodeURIComponent(item.id)+"/tracking-link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
+  var old=tools.querySelector(".unlocker-share");if(old)old.remove();
+  var share=node("div","unlocker-share"),field=document.createElement("input");field.type="text";field.readOnly=true;field.value=result.url||"";field.setAttribute("aria-label","Customer unlock status link");
+  var copy=node("button","unlocker-action unlocker-action-secondary","Copy link");copy.type="button";
+  copy.addEventListener("click",async function(){
+   try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(field.value);copy.textContent="Copied";return;}}catch(_){}
+   field.focus();field.select();try{document.execCommand("copy");copy.textContent="Copied";}catch(_){copy.textContent="Select link";}
+  });
+  share.appendChild(field);share.appendChild(copy);share.appendChild(node("small","unlocker-expiry","Link expires "+dateText(result.expiresAt)+". A new link replaces this one."));
+  tools.appendChild(share);button.textContent="Refresh customer link";
+  setBanner("Customer status link created. Copy it and send it to the device owner.","success","Link ready");
+ }catch(err){button.textContent=oldText;setBanner(err.message||"Could not create the customer status link.","error","Unlocker action failed");}
+ finally{button.disabled=false;}
+}
+async function updateUnlockerStatus(item,select,button){
+ var next=select.value;if(!next)return;
+ var promptText=next==="completed"?"Mark this device as successfully unlocked?":next==="rejected"?"Mark this request as unable to complete? If it has not entered processing, the service charge will be refunded.":"Move this unlock request to "+unlockStatusText(next)+"?";
+ if(!window.confirm(promptText))return;
+ button.disabled=true;
+ try{
+  await request("/api/orders/"+encodeURIComponent(item.id)+"/status",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:next})});
+  await load();setBanner(next==="completed"?"The device is now marked successfully unlocked.":"Unlock status updated to "+unlockStatusText(next)+".","success","Status updated");
+ }catch(err){setBanner(err.message||"Could not update this unlock status.","error","Unlocker action failed");button.disabled=false;}
+}
+function renderRows(id,items,type){
+ var host=el(id);host.textContent="";
+ if(!items||!items.length){host.appendChild(node("div","empty-records",type==="transactions"?"No wallet activity yet.":type==="topups"?"No top-up requests yet.":"No service requests yet."));return;}
+ items.forEach(function(item){
+  var row=node("div","record-row"),main=node("div","record-main"),amount=node("div","record-amount");
+  if(type==="transactions"){
+   main.appendChild(node("strong",null,item.description||stateLabel(item.kind)));
+   main.appendChild(node("p",null,dateText(item.createdAt)+" · "+stateLabel(item.kind)));
+   var n=Number(item.amount||0);amount.textContent=(n>0?"+":"")+fmt(n);amount.classList.add(n>=0?"positive":"negative");
+  }else if(type==="topups"){
+   main.appendChild(node("strong",null,fmt(item.amount)+" · "+(item.requestReference||"Top-up")));
+   main.appendChild(node("p",null,(item.providerReference?"Payment ref: "+item.providerReference+" · ":"")+"Created "+dateText(item.createdAt)));
+   var state=node("span","record-state "+item.status,stateLabel(item.status));main.appendChild(state);
+   if(item.status==="awaiting_payment"){
+    var resume=node("button","resume-topup","Submit payment reference");resume.type="button";
+    resume.addEventListener("click",function(){currentTopup=item;el("topup-ref-display").textContent=item.requestReference||"Reference unavailable";el("topup-followup").hidden=false;el("topup-followup").scrollIntoView({behavior:"smooth",block:"center"});});
+    main.appendChild(resume);
+   }
+   amount.textContent=stateLabel(item.status);amount.classList.add("record-amount");
+  }else{
+   main.appendChild(node("strong",null,(item.serviceName||serviceNames[item.serviceKey]||"Service")+" · "+(item.deviceModel||modelNames[item.modelKey]||"iPhone")));
+   main.appendChild(node("p",null,(item.maskedIdentifier||"Identifier protected")+" · "+dateText(item.createdAt)));
+   main.appendChild(node("span","record-state "+item.status,item.serviceKey==="unlock"?unlockStatusText(item.status):stateLabel(item.status)));
+   amount.textContent=fmt(item.amountDue);amount.classList.add("record-amount");
+   if(isUnlocker&&item.serviceKey==="unlock")renderUnlockerTools(item,main);
+  }
+  row.appendChild(main);row.appendChild(amount);host.appendChild(row);
+ });
+}
 function newImeiRequestId(){var bytes=new Uint8Array(16);if(window.crypto&&window.crypto.getRandomValues)window.crypto.getRandomValues(bytes);else for(var i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256);return Array.prototype.map.call(bytes,function(b){return b.toString(16).padStart(2,"0");}).join("");}
 function validImeiInput(value){if(!/^\d{15}$/.test(value))return false;var sum=0;for(var i=13;i>=0;i--){var digit=Number(value[i]);if((13-i)%2===0){digit*=2;if(digit>9)digit-=9;}sum+=digit;}return (10-(sum%10))%10===Number(value[14]);}
 try{var queuedImei=sessionStorage.getItem("414unlock_pending_imei")||"";if(validImeiInput(queuedImei))pendingImei=queuedImei;else if(queuedImei)sessionStorage.removeItem("414unlock_pending_imei");}catch(_){}
@@ -44,7 +117,7 @@ function imeiSignInUrl(){return "account.html?flow=signin"+(pendingImei?"&return
 function renderImeiResult(data,alreadyProcessed){var panel=el("imei-result"),result=data||{};el("imei-result-title").textContent=result.found?([result.brand,result.model].filter(Boolean).join(" ")||"Device identified"):"No TAC record found";el("imei-result-summary").textContent=result.found?(alreadyProcessed?"This completed result was restored. No second wallet deduction was made.":"Lookup complete. D150 was deducted from your wallet."):"HiCellTek did not find this TAC in its catalogue. The lookup completed successfully and D150 was deducted.";el("imei-result-brand").textContent=result.brand||"Not available";el("imei-result-model").textContent=result.model||"Not available";el("imei-result-info").textContent=result.modelInfo||"Not available";el("imei-result-year").textContent=result.year||"Not available";el("imei-result-chipset").textContent=result.chipset||"Not available";el("imei-result-tac").textContent=result.tac||"Not available";panel.hidden=false;}
 function createCheckoutUrl(){var raw=String(cfg.SQUASHBERRYPAY_TOPUP_URL||"").trim();if(!raw)return "";try{var parsed=new URL(raw);if(parsed.protocol!=="https:"||parsed.username||parsed.password)return "";return parsed.toString();}catch(_){return "";}}
 async function load(){if(!token){location.replace(imeiSignInUrl());return;}if(!api){setBanner("The public website is redesigned, but the wallet/account API is not connected yet. No balance, payment or order action will be simulated.","error","Backend not configured");el("account-email").textContent="Sign in required";el("wallet-balance").textContent="Unavailable";el("verification-title").textContent="Service unavailable";el("verification-state").textContent="OFFLINE";disableForms(true);return;}var requestedService=new URLSearchParams(location.search).get("service");if(requestedService==="unlock"||requestedService==="imei_check"){el("service-type").value=requestedService;updateQuote();}
-try{var results=await Promise.all([request("/api/auth/me"),request("/api/verification/status"),request("/api/wallet/overview")]);var me=results[0],ver=results[1],wallet=results[2];accountEmail=(me.user&&me.user.email)||"";el("account-email").textContent=accountEmail||"Signed in";el("account-name").textContent=(me.user&&me.user.fullName)||"Member account";el("account-id").textContent=me.user&&me.user.id?String(me.user.id).slice(0,8).toUpperCase():"—";var stats=wallet.stats||{};el("stat-total-orders").textContent=Number(stats.totalOrders||0).toLocaleString();el("stat-credits-used").textContent=fmt(stats.creditsUsed||0);el("stat-completed-orders").textContent=Number(stats.completedOrders||0).toLocaleString();el("stat-rejected-orders").textContent=Number(stats.rejectedOrders||0).toLocaleString();setVerification(ver.status||"not_submitted",ver.note||"");el("wallet-balance").textContent=fmt(wallet.balance);renderRows("transaction-list",wallet.transactions||[],"transactions");renderRows("topup-list",wallet.topups||[],"topups");renderRows("order-list",wallet.orders||[],"orders");renderRows("overview-order-list",(wallet.orders||[]).slice(0,4),"orders");}
+try{var results=await Promise.all([request("/api/auth/me"),request("/api/verification/status"),request("/api/wallet/overview")]);var me=results[0],ver=results[1],wallet=results[2];isUnlocker=ver.unlocker===true;accountEmail=(me.user&&me.user.email)||"";el("account-email").textContent=accountEmail||"Signed in";el("account-name").textContent=(me.user&&me.user.fullName)||"Member account";el("account-id").textContent=me.user&&me.user.id?String(me.user.id).slice(0,8).toUpperCase():"—";var stats=wallet.stats||{};el("stat-total-orders").textContent=Number(stats.totalOrders||0).toLocaleString();el("stat-credits-used").textContent=fmt(stats.creditsUsed||0);el("stat-completed-orders").textContent=Number(stats.completedOrders||0).toLocaleString();el("stat-rejected-orders").textContent=Number(stats.rejectedOrders||0).toLocaleString();setVerification(ver.status||"not_submitted",ver.note||"");el("wallet-balance").textContent=fmt(wallet.balance);renderRows("transaction-list",wallet.transactions||[],"transactions");renderRows("topup-list",wallet.topups||[],"topups");renderRows("order-list",wallet.orders||[],"orders");renderRows("overview-order-list",(wallet.orders||[]).slice(0,4),"orders");}
 catch(e){setBanner(e.message||"Could not load your secure account.","error","Account service unavailable");if(e.status===401||["AUTH_REQUIRED","INVALID_SESSION","SESSION_EXPIRED"].indexOf(e.code)>=0){if(session&&session.clear)session.clear();else{localStorage.removeItem("414unlock_token");sessionStorage.removeItem("414unlock_token");}location.replace(imeiSignInUrl());return;}disableForms(true);}}
 el("service-type").addEventListener("change",function(){activeImeiRequestId=null;if(el("service-type").value!=="imei_check"){pendingImei="";try{sessionStorage.removeItem("414unlock_pending_imei");}catch(_){}}updateQuote();});el("device-identifier").addEventListener("input",function(){activeImeiRequestId=null;if(el("service-type").value==="imei_check"){var current=el("device-identifier").value.replace(/\D/g,"");try{if(validImeiInput(current)){pendingImei=current;sessionStorage.setItem("414unlock_pending_imei",current);}else{pendingImei="";sessionStorage.removeItem("414unlock_pending_imei");}}catch(_){}}});el("model-key").addEventListener("change",updateQuote);el("fast-service").addEventListener("change",updateQuote);
 el("logout-link").addEventListener("click",function(){if(session&&session.clear)session.clear();else{localStorage.removeItem("414unlock_token");sessionStorage.removeItem("414unlock_token");localStorage.removeItem("414unlock_flow");sessionStorage.removeItem("414unlock_flow");}});
