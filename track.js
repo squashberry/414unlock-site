@@ -26,7 +26,7 @@ if(status==="rejected"){steps.hidden=true;}else{
 var current=names.findIndex(function(x){return x[0]===status;});steps.hidden=false;
 names.forEach(function(item,index){var li=document.createElement("li");li.textContent=item[1];if(status==="completed"||index<current)li.className="done";else if(index===current)li.className="current";steps.appendChild(li);});
 }
-updated.hidden=false;updated.textContent="Last updated: "+dateText(order.updatedAt||order.createdAt)+(status==="completed"&&order.completedAt?" · Completed: "+dateText(order.completedAt):"");
+updated.hidden=false;updated.textContent="Last updated: "+dateText(order.updatedAt||order.createdAt);
 }
 async function load(){
 if(!api){showError("The 414Unlock status service is not configured.");return;}
