@@ -21,7 +21,12 @@ export 'core/auth/auth_service.dart';
 export 'core/device/device_info.dart';
 export 'core/device/device_detection_service.dart';
 export 'core/device/apple_device_detection_service.dart';
+export 'core/device/apple_usbmux_client.dart';
+export 'core/device/apple_device_database.dart';
+export 'core/device/external_idevice_tools.dart';
 export 'core/device/android_device_detection_service.dart';
+export 'core/device/android_platform_tools_manager.dart';
+export 'core/device/native_windows_usb.dart';
 
 // Engine
 export 'core/engine/repair_engine.dart';

@@ -168,14 +168,14 @@ void main() {
       final service = AppUpdateService();
 
       AppUpdateService.mockHttpHandler = (uri) async {
-        expect(uri.queryParameters['version'], equals('1.0.0'));
+        expect(uri.queryParameters['version'], equals('1.0.1'));
         expect(uri.queryParameters['platform'], equals('windows'));
         return jsonEncode({
           'ok': true,
           'product': '414Unlock',
           'channel': 'stable',
           'platform': 'windows',
-          'currentVersion': '1.0.0',
+          'currentVersion': '1.0.1',
           'latestVersion': '1.5.0',
           'minimumVersion': '1.0.0',
           'updateAvailable': true,
@@ -189,7 +189,7 @@ void main() {
         });
       };
 
-      final result = await service.checkForUpdates(overrideVersion: '1.0.0');
+      final result = await service.checkForUpdates(overrideVersion: '1.0.1');
       expect(result, isNotNull);
       expect(result!.updateAvailable, isTrue);
       expect(result.latestVersion, equals('1.5.0'));

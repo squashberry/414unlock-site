@@ -2,8 +2,10 @@ import 'dart:async';
 import 'device_detection_service.dart';
 import 'device_info.dart';
 import '../logging/app_logger.dart';
-import 'native_windows_usb.dart';
+import 'apple_device_database.dart';
 import 'apple_usbmux_client.dart';
+import 'external_idevice_tools.dart';
+import 'native_windows_usb.dart';
 import '../compatibility/device_compatibility_service.dart';
 
 class AppleDeviceDetectionService extends DeviceDetectionService {
@@ -80,70 +82,142 @@ class AppleDeviceDetectionService extends DeviceDetectionService {
       _consecutiveAbsences = 0;
       final raw = rawDevices.first;
 
-      // 2. Query Usbmuxd for additional details if in normal mode
-      List<UsbmuxDeviceEntry> usbmuxEntries = [];
-      if (raw.mode == DeviceMode.normal) {
+      String name = 'Apple iPhone';
+      String? model;
+      String? modelIdentifier = raw.productType;
+      String? chipFamily = raw.chipFamily;
+      String? osVersion;
+      String? serialNumber = raw.serialNumber;
+      LockdownStatus lockdownStatus = LockdownStatus.available;
+
+      if (raw.mode == DeviceMode.recovery || raw.mode == DeviceMode.dfu) {
+        lockdownStatus = raw.mode == DeviceMode.recovery
+            ? LockdownStatus.recoveryMode
+            : LockdownStatus.dfuMode;
+
+        // 2a. Query libirecovery (irecovery -q) if tool is available on system
+        try {
+          final recInfo = await ExternalIdeviceTools.queryRecoveryDevice();
+          if (recInfo != null) {
+            if (recInfo.productType != null) {
+              modelIdentifier = recInfo.productType;
+            }
+            if (recInfo.model != null) {
+              model = recInfo.model;
+            }
+            if (recInfo.serialNumber != null && recInfo.serialNumber!.isNotEmpty) {
+              serialNumber = recInfo.serialNumber;
+            }
+            if (recInfo.chipFamily != null) {
+              chipFamily = recInfo.chipFamily;
+            }
+          }
+        } catch (_) {}
+
+        if (modelIdentifier != null && model == null) {
+          model = AppleDeviceDatabase.mapProductType(modelIdentifier);
+        }
+
+        name = raw.mode == DeviceMode.recovery
+            ? (model != null ? '$model (Recovery Mode)' : 'Apple Mobile Device (Recovery Mode)')
+            : (model != null ? '$model (DFU Mode)' : 'Apple Mobile Device (DFU Diagnostic Mode)');
+      } else {
+        // Normal mode (including Setup / Hello / Activation-Locked screen)
+        lockdownStatus = LockdownStatus.setupScreen;
+
+        // 2b. Query Usbmuxd for connected entries
+        List<UsbmuxDeviceEntry> usbmuxEntries = [];
         try {
           usbmuxEntries = await AppleUsbmuxClient.listConnectedDevices(
             timeout: const Duration(milliseconds: 800),
           );
         } catch (_) {}
-      }
 
-      final serialNumber = usbmuxEntries.isNotEmpty
-          ? usbmuxEntries.first.serialNumber
-          : raw.serialNumber;
+        if (usbmuxEntries.isNotEmpty) {
+          serialNumber = usbmuxEntries.first.serialNumber;
 
-      String name = 'Apple iPhone';
-      String? model;
-      String? modelIdentifier;
-      String? osVersion;
-      LockdownStatus lockdownStatus = LockdownStatus.available;
+          // 3. Query Lockdown service via usbmuxd tunnel for public keys
+          // Queries individual public keys (ProductType, ProductVersion, etc.)
+          // which succeed even on Activation-locked / Hello-screen devices without pairing.
+          try {
+            final (lockdownInfo, errorReason) = await AppleUsbmuxClient.queryLockdownWithRawResponse(
+              usbmuxEntries.first.deviceId,
+              timeout: const Duration(milliseconds: 2500),
+            );
 
-      // 3. Query Lockdown service via usbmuxd tunnel for exact ProductType and iOS version
-      if (usbmuxEntries.isNotEmpty && raw.mode == DeviceMode.normal) {
-        try {
-          final (lockdownInfo, errorReason) = await AppleUsbmuxClient.queryLockdownWithRawResponse(
-            usbmuxEntries.first.deviceId,
-            timeout: const Duration(milliseconds: 2500),
-          );
-          if (lockdownInfo != null) {
-            modelIdentifier = lockdownInfo.productType;
-            osVersion = lockdownInfo.productVersion;
-            model = AppleUsbmuxClient.mapProductType(lockdownInfo.productType);
-            name = (lockdownInfo.deviceName != null && lockdownInfo.deviceName!.isNotEmpty)
-                ? lockdownInfo.deviceName!
-                : model;
-            lockdownStatus = LockdownStatus.setupScreen;
-          } else {
-            // Determine specific failure reason
-            if (errorReason == 'TIMEOUT') {
-              lockdownStatus = LockdownStatus.timeout;
-              AppLogger().warning('Lockdown query timed out for device');
-            } else if (errorReason == 'CONNECT_FAILED') {
-              lockdownStatus = LockdownStatus.untrustedOrLocked;
-              AppLogger().warning('Lockdown connect failed — device may be locked or untrusted');
-            } else if (errorReason != null) {
-              lockdownStatus = AppleUsbmuxClient.lockdownErrorToStatus(errorReason);
-              AppLogger().warning('Lockdown query failed: $errorReason');
+            if (lockdownInfo != null) {
+              if (lockdownInfo.productType.isNotEmpty) {
+                modelIdentifier = lockdownInfo.productType;
+                model = AppleDeviceDatabase.mapProductType(lockdownInfo.productType);
+              }
+              if (lockdownInfo.productVersion.isNotEmpty) {
+                osVersion = lockdownInfo.productVersion;
+              }
+              if (lockdownInfo.deviceName != null && lockdownInfo.deviceName!.isNotEmpty) {
+                name = lockdownInfo.deviceName!;
+              } else if (model != null) {
+                name = model;
+              }
+
+              if (lockdownInfo.activationState == 'Unactivated') {
+                lockdownStatus = LockdownStatus.setupScreen;
+              } else {
+                lockdownStatus = LockdownStatus.available;
+              }
             } else {
-              lockdownStatus = LockdownStatus.failed;
-              AppLogger().warning('Lockdown query returned no data');
+              // Lockdownd direct query yielded no keys; check optional ideviceinfo helper
+              final idev = await ExternalIdeviceTools.queryDeviceInfo();
+              if (idev != null) {
+                if (idev.productType != null) {
+                  modelIdentifier = idev.productType;
+                  model = AppleDeviceDatabase.mapProductType(idev.productType!);
+                }
+                if (idev.productVersion != null) {
+                  osVersion = idev.productVersion;
+                }
+                if (idev.deviceName != null && idev.deviceName!.isNotEmpty) {
+                  name = idev.deviceName!;
+                }
+              }
+
+              if (errorReason == 'TIMEOUT') {
+                lockdownStatus = LockdownStatus.timeout;
+              } else {
+                // Device is present on USB at Setup / Activation Lock screen
+                lockdownStatus = LockdownStatus.setupScreen;
+              }
+            }
+          } catch (e) {
+            AppLogger().warning('Lockdown query exception: $e');
+            lockdownStatus = LockdownStatus.setupScreen;
+          }
+        } else {
+          // Usbmuxd returned no devices, but native USB detected Apple hardware!
+          final idev = await ExternalIdeviceTools.queryDeviceInfo();
+          if (idev != null) {
+            if (idev.productType != null) {
+              modelIdentifier = idev.productType;
+              model = AppleDeviceDatabase.mapProductType(idev.productType!);
+            }
+            if (idev.productVersion != null) {
+              osVersion = idev.productVersion;
             }
           }
-        } catch (e) {
-          lockdownStatus = LockdownStatus.failed;
-          AppLogger().warning('Lockdown query exception: $e');
+
+          lockdownStatus = LockdownStatus.setupScreen;
         }
-      } else if (usbmuxEntries.isEmpty && raw.mode == DeviceMode.normal) {
-        lockdownStatus = LockdownStatus.serviceUnavailable;
-        AppLogger().warning('usbmuxd returned no devices — service may be unavailable');
-      } else if (raw.mode == DeviceMode.recovery) {
-        lockdownStatus = LockdownStatus.recoveryMode;
-      } else if (raw.mode == DeviceMode.dfu) {
-        lockdownStatus = LockdownStatus.dfuMode;
-      } else {
-        lockdownStatus = LockdownStatus.notApplicable;
+
+        if (model == null && modelIdentifier != null) {
+          model = AppleDeviceDatabase.mapProductType(modelIdentifier);
+        }
+        if (model != null && (name == 'Apple iPhone' || name.isEmpty)) {
+          name = model;
+        } else if (model == null) {
+          name = raw.friendlyName.isNotEmpty
+              ? raw.friendlyName
+              : 'Apple Mobile Device USB Device';
+          model = 'Apple iPhone';
+        }
       }
 
       // Preserve previously verified details on transient query failure if still on same device
@@ -154,33 +228,25 @@ class AppleDeviceDetectionService extends DeviceDetectionService {
         osVersion = _currentDevice!.osVersion;
         model = _currentDevice!.model;
         name = _currentDevice!.name;
-        // Keep previous lockdown status if it was successful
         if (_currentDevice!.lockdownStatus == LockdownStatus.available ||
             _currentDevice!.lockdownStatus == LockdownStatus.setupScreen) {
           lockdownStatus = _currentDevice!.lockdownStatus;
         }
       }
 
-      if (raw.mode == DeviceMode.recovery) {
-        name = 'Apple Mobile Device (Recovery Mode)';
-        model = 'iPhone (Recovery)';
-      } else if (raw.mode == DeviceMode.dfu) {
-        name = 'Apple Mobile Device (DFU Diagnostic Mode)';
-        model = 'iPhone (DFU)';
-      } else if (model == null) {
-        name = raw.friendlyName.isNotEmpty
-            ? raw.friendlyName
-            : 'Apple Mobile Device USB Device';
-        model = 'Apple iPhone';
+      // Resolve chip family if still missing
+      if (chipFamily == null && modelIdentifier != null) {
+        chipFamily = AppleDeviceDatabase.lookupChipFamilyByProductType(modelIdentifier);
+      }
+      if (chipFamily == null && raw.cpid != null) {
+        chipFamily = AppleDeviceDatabase.lookupChipFamilyByCpid(raw.cpid!);
       }
 
       final statusDesc = raw.mode == DeviceMode.dfu
           ? 'DFU Diagnostic interface active — Restore device to reach Setup screen'
           : raw.mode == DeviceMode.recovery
               ? 'Recovery interface active — Restore device to reach Setup screen'
-              : lockdownStatus == LockdownStatus.passcodeLocked
-                  ? 'Passcode locked — Put into Recovery Mode and restore'
-                  : 'USB communication ready (Setup screen)';
+              : 'USB communication ready (Setup / Activation Lock screen)';
 
       // 4. Evaluate compatibility against published vendor documentation
       final compatResult = DeviceCompatibilityService.evaluate(
@@ -195,7 +261,7 @@ class AppleDeviceDetectionService extends DeviceDetectionService {
         name: name,
         model: model,
         modelIdentifier: modelIdentifier,
-        chipFamily: compatResult.chipFamily.label,
+        chipFamily: chipFamily ?? compatResult.chipFamily.label,
         serialNumber: serialNumber,
         osVersion: osVersion,
         mode: raw.mode,

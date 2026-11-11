@@ -5,6 +5,7 @@ import 'device_detection_service.dart';
 import 'device_info.dart';
 import '../logging/app_logger.dart';
 import '../prerequisites/windows_checker_helper.dart';
+import 'android_platform_tools_manager.dart';
 
 class AndroidDeviceDetectionService extends DeviceDetectionService {
   DeviceInfo? _currentDevice;
@@ -48,20 +49,21 @@ class AndroidDeviceDetectionService extends DeviceDetectionService {
   }
 
   Future<void> _resolvePaths() async {
-    _adbPath = await WindowsCheckerHelper.findExecutableOnPath('adb.exe') ??
-        WindowsCheckerHelper.findFirstExisting([
-          r'%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe',
-          r'C:\Android\platform-tools\adb.exe',
-          r'C:\platform-tools\adb.exe',
-        ]);
+    _adbPath = await AndroidPlatformToolsManager.findAdb();
+    _fastbootPath = await AndroidPlatformToolsManager.findFastboot();
 
-    _fastbootPath =
-        await WindowsCheckerHelper.findExecutableOnPath('fastboot.exe') ??
-            WindowsCheckerHelper.findFirstExisting([
-              r'%LOCALAPPDATA%\Android\Sdk\platform-tools\fastboot.exe',
-              r'C:\Android\platform-tools\fastboot.exe',
-              r'C:\platform-tools\fastboot.exe',
-            ]);
+    if (_adbPath == null) {
+      // Auto-download official platform-tools asynchronously without blocking detection loop
+      unawaited(
+        AndroidPlatformToolsManager.ensurePlatformToolsDownloaded().then((success) async {
+          if (success) {
+            _adbPath = await AndroidPlatformToolsManager.findAdb();
+            _fastbootPath = await AndroidPlatformToolsManager.findFastboot();
+            queryDevices();
+          }
+        }),
+      );
+    }
   }
 
   @override

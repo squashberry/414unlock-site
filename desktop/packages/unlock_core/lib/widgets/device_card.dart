@@ -177,15 +177,17 @@ class DeviceCard extends StatelessWidget {
               if (device.modelIdentifier != null)
                 _buildInfoItem('Model Identifier', device.modelIdentifier!)
               else if (isIos)
-                _buildInfoItem('Model Identifier', 'Not reported'),
+                _buildInfoItem('Model Identifier', 'Unavailable in current device state'),
               if (device.chipFamily != null)
                 _buildInfoItem('Architecture', device.chipFamily!),
               if (device.osVersion != null)
                 _buildInfoItem('Firmware / iOS', 'iOS ${device.osVersion!}')
               else if (isIos)
-                _buildInfoItem('Firmware / iOS', 'Not reported (Unconfirmed)'),
+                _buildInfoItem('Firmware / iOS', 'Unavailable in current device state'),
               if (device.serialNumber != null)
-                _buildInfoItem(device.identifierLabel, device.maskedIdentifier),
+                _buildInfoItem(device.identifierLabel, device.maskedIdentifier)
+              else if (isIos)
+                _buildInfoItem('Identifier', 'Unavailable in current device state'),
               _buildInfoItem('Connection', device.connectionType),
             ],
           ),

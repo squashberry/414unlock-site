@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../device/android_platform_tools_manager.dart';
 import 'prerequisite.dart';
 import 'windows_checker_helper.dart';
 
@@ -53,16 +54,7 @@ class AndroidPrerequisites {
         officialDownloadUrl:
             'https://developer.android.com/tools/releases/platform-tools',
         checkFunction: () async {
-          // Check PATH
-          final pathAdb = await WindowsCheckerHelper.findExecutableOnPath('adb.exe');
-          String? adbExe = pathAdb;
-
-          adbExe ??= WindowsCheckerHelper.findFirstExisting([
-              r'%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe',
-              r'C:\Android\platform-tools\adb.exe',
-              r'C:\platform-tools\adb.exe',
-              r'%USERPROFILE%\platform-tools\adb.exe',
-            ]);
+          final adbExe = await AndroidPlatformToolsManager.findAdb();
 
           if (adbExe != null) {
             try {
@@ -91,7 +83,7 @@ class AndroidPrerequisites {
           return const PrerequisiteCheckResult(
             status: PrerequisiteStatus.missing,
             message:
-                'ADB not found on PATH or in Android SDK platform-tools. Download official Android Platform Tools.',
+                'ADB not found. Download official Android Platform Tools or allow automatic installation.',
           );
         },
       ),
@@ -103,15 +95,7 @@ class AndroidPrerequisites {
         officialDownloadUrl:
             'https://developer.android.com/tools/releases/platform-tools',
         checkFunction: () async {
-          final pathFastboot = await WindowsCheckerHelper.findExecutableOnPath('fastboot.exe');
-          String? fastbootExe = pathFastboot;
-
-          fastbootExe ??= WindowsCheckerHelper.findFirstExisting([
-              r'%LOCALAPPDATA%\Android\Sdk\platform-tools\fastboot.exe',
-              r'C:\Android\platform-tools\fastboot.exe',
-              r'C:\platform-tools\fastboot.exe',
-              r'%USERPROFILE%\platform-tools\fastboot.exe',
-            ]);
+          final fastbootExe = await AndroidPlatformToolsManager.findFastboot();
 
           if (fastbootExe != null) {
             try {
@@ -140,7 +124,7 @@ class AndroidPrerequisites {
           return const PrerequisiteCheckResult(
             status: PrerequisiteStatus.missing,
             message:
-                'Fastboot utility not found. Bundled in the official Android SDK platform-tools package.',
+                'Fastboot utility not found. Bundled in official Android SDK platform-tools.',
           );
         },
       ),

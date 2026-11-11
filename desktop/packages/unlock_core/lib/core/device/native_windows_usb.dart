@@ -1,7 +1,9 @@
 import 'dart:ffi';
 import 'dart:io';
 import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart';
 import '../logging/app_logger.dart';
+import 'apple_device_database.dart';
 import 'device_info.dart';
 
 typedef _CMGetDeviceIDListSizeWNative = Int32 Function(
@@ -21,6 +23,11 @@ class RawUsbDevice {
   final String? serialNumber;
   final DeviceMode mode;
   final String friendlyName;
+  final String? cpid;
+  final String? bdid;
+  final String? ecid;
+  final String? productType;
+  final String? chipFamily;
 
   const RawUsbDevice({
     required this.instanceId,
@@ -29,6 +36,11 @@ class RawUsbDevice {
     this.serialNumber,
     required this.mode,
     required this.friendlyName,
+    this.cpid,
+    this.bdid,
+    this.ecid,
+    this.productType,
+    this.chipFamily,
   });
 }
 
@@ -122,6 +134,9 @@ class NativeWindowsUsb {
     }
   }
 
+  @visibleForTesting
+  static RawUsbDevice? parseInstanceId(String instanceId) => _parseInstanceId(instanceId);
+
   static RawUsbDevice? _parseInstanceId(String instanceId) {
     final upper = instanceId.toUpperCase();
     final vidMatch = RegExp(r'VID_([0-9A-F]{4})').firstMatch(upper);
@@ -132,7 +147,7 @@ class NativeWindowsUsb {
     final pid = pidMatch?.group(1) ?? '12A8';
 
     DeviceMode mode = DeviceMode.normal;
-    String friendly = 'Apple Mobile Device (Normal Mode)';
+    String friendly = 'Apple Mobile Device USB Device';
 
     if (pid == '1281') {
       mode = DeviceMode.recovery;
@@ -140,19 +155,71 @@ class NativeWindowsUsb {
     } else if (pid == '1227') {
       mode = DeviceMode.dfu;
       friendly = 'Apple Mobile Device (DFU Mode)';
+    } else if (pid == '1222') {
+      mode = DeviceMode.normal;
+      friendly = 'Apple Mobile Device (Diagnostic Mode)';
     } else if (pid == '12A8') {
       mode = DeviceMode.normal;
       friendly = 'Apple Mobile Device USB Device';
     }
 
-    // Extract device serial / ECID / UDID from last path token
-    String? serial;
+    // Extract device serial / ECID / UDID descriptor from last path token
+    String? rawCandidate;
     final parts = instanceId.split(r'\');
     if (parts.length > 2) {
       final candidate = parts.last.trim();
       // On Windows, composite device child interfaces contain &MI_
       if (!candidate.contains('&')) {
-        serial = candidate;
+        rawCandidate = candidate;
+      }
+    }
+
+    String? serial = rawCandidate;
+    String? cpid;
+    String? bdid;
+    String? ecid;
+    String? productType;
+    String? chipFamily;
+
+    final descriptorStr = rawCandidate ?? instanceId;
+
+    if (mode == DeviceMode.recovery || mode == DeviceMode.dfu) {
+      // Parse recovery/DFU descriptor tags: CPID:8110, BDID:0A, ECID:..., SRNM:...
+      final cpidMatch = RegExp(r'CPID:([0-9A-F]{4})').firstMatch(descriptorStr);
+      final bdidMatch = RegExp(r'BDID:([0-9A-F]{1,2})').firstMatch(descriptorStr);
+      final ecidMatch = RegExp(r'ECID:([0-9A-F]+)').firstMatch(descriptorStr);
+      final srnmMatch = RegExp(r'SRNM:\[?([A-Z0-9]+)\]?').firstMatch(descriptorStr);
+
+      if (cpidMatch != null) cpid = cpidMatch.group(1);
+      if (bdidMatch != null) bdid = bdidMatch.group(1)!.padLeft(2, '0');
+      if (ecidMatch != null) ecid = ecidMatch.group(1);
+      if (srnmMatch != null && srnmMatch.group(1)!.isNotEmpty) {
+        serial = srnmMatch.group(1);
+      } else if (ecid != null) {
+        serial = ecid;
+      }
+
+      if (cpid != null && bdid != null) {
+        productType = AppleDeviceDatabase.lookupProductTypeByCpidBdid(
+          cpidHex: cpid,
+          bdidHex: bdid,
+        );
+      }
+      if (cpid != null) {
+        chipFamily = AppleDeviceDatabase.lookupChipFamilyByCpid(cpid);
+      }
+    } else {
+      // Normal mode: check for 24-char serial "0000<CPID:4><ECID:16>" or formatted "00008110-000A184214D0201E"
+      if (rawCandidate != null) {
+        final clean = rawCandidate.replaceAll('-', '').trim();
+        if (clean.length == 24 && clean.startsWith('0000')) {
+          cpid = clean.substring(4, 8);
+          ecid = clean.substring(8, 24);
+          chipFamily = AppleDeviceDatabase.lookupChipFamilyByCpid(cpid);
+        } else if (clean.length == 40) {
+          // 40-character SHA1 UDID (iPhone 5s through iPhone X)
+          serial = clean;
+        }
       }
     }
 
@@ -163,6 +230,11 @@ class NativeWindowsUsb {
       serialNumber: serial,
       mode: mode,
       friendlyName: friendly,
+      cpid: cpid,
+      bdid: bdid,
+      ecid: ecid,
+      productType: productType,
+      chipFamily: chipFamily,
     );
   }
 

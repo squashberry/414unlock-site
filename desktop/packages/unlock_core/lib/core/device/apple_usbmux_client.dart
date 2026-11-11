@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'apple_device_database.dart';
 import 'device_info.dart';
 import '../logging/app_logger.dart';
 
@@ -26,6 +27,9 @@ class LockdownDeviceInfo {
   final String? deviceName;
   final String? buildVersion;
   final String? udid;
+  final String? activationState;
+  final bool? passwordProtected;
+  final String? chipId;
 
   const LockdownDeviceInfo({
     required this.productType,
@@ -33,6 +37,9 @@ class LockdownDeviceInfo {
     this.deviceName,
     this.buildVersion,
     this.udid,
+    this.activationState,
+    this.passwordProtected,
+    this.chipId,
   });
 }
 
@@ -44,74 +51,11 @@ class AppleUsbmuxClient {
   static Future<List<UsbmuxDeviceEntry>> Function()? mockListDevicesProvider;
   static Future<LockdownDeviceInfo?> Function(int deviceId)? mockLockdownProvider;
 
-  /// Map of known Apple ProductType identifiers to consumer model names
-  static const Map<String, String> _appleModelMap = {
-    // iPhone 16
-    'iPhone17,1': 'iPhone 16 Pro',
-    'iPhone17,2': 'iPhone 16 Pro Max',
-    'iPhone17,3': 'iPhone 16',
-    'iPhone17,4': 'iPhone 16 Plus',
-    // iPhone 15
-    'iPhone16,1': 'iPhone 15 Pro',
-    'iPhone16,2': 'iPhone 15 Pro Max',
-    'iPhone15,4': 'iPhone 15',
-    'iPhone15,5': 'iPhone 15 Plus',
-    // iPhone 14
-    'iPhone15,2': 'iPhone 14 Pro',
-    'iPhone15,3': 'iPhone 14 Pro Max',
-    'iPhone14,7': 'iPhone 14',
-    'iPhone14,8': 'iPhone 14 Plus',
-    // iPhone 13
-    'iPhone14,2': 'iPhone 13 Pro',
-    'iPhone14,3': 'iPhone 13 Pro Max',
-    'iPhone14,4': 'iPhone 13 mini',
-    'iPhone14,5': 'iPhone 13',
-    // iPhone 12
-    'iPhone13,1': 'iPhone 12 mini',
-    'iPhone13,2': 'iPhone 12',
-    'iPhone13,3': 'iPhone 12 Pro',
-    'iPhone13,4': 'iPhone 12 Pro Max',
-    // iPhone 11
-    'iPhone12,1': 'iPhone 11',
-    'iPhone12,3': 'iPhone 11 Pro',
-    'iPhone12,5': 'iPhone 11 Pro Max',
-    // iPhone SE
-    'iPhone8,4': 'iPhone SE (1st gen)',
-    'iPhone12,8': 'iPhone SE (2nd gen)',
-    'iPhone14,6': 'iPhone SE (3rd gen)',
-    // iPhone X / XS / XR
-    'iPhone11,2': 'iPhone XS',
-    'iPhone11,4': 'iPhone XS Max',
-    'iPhone11,6': 'iPhone XS Max',
-    'iPhone11,8': 'iPhone XR',
-    'iPhone10,3': 'iPhone X',
-    'iPhone10,6': 'iPhone X',
-    // iPhone 8 / 7 / 6s
-    'iPhone10,1': 'iPhone 8',
-    'iPhone10,4': 'iPhone 8',
-    'iPhone10,2': 'iPhone 8 Plus',
-    'iPhone10,5': 'iPhone 8 Plus',
-    'iPhone9,1': 'iPhone 7',
-    'iPhone9,3': 'iPhone 7',
-    'iPhone9,2': 'iPhone 7 Plus',
-    'iPhone9,4': 'iPhone 7 Plus',
-    'iPhone8,1': 'iPhone 6s',
-    'iPhone8,2': 'iPhone 6s Plus',
-  };
+
 
   /// Translates an Apple ProductType into a consumer friendly model name
   static String mapProductType(String rawProductType) {
-    final clean = rawProductType.trim();
-    if (_appleModelMap.containsKey(clean)) {
-      return _appleModelMap[clean]!;
-    }
-    if (clean.toLowerCase().startsWith('iphone')) {
-      return 'Apple iPhone ($clean)';
-    }
-    if (clean.toLowerCase().startsWith('ipad')) {
-      return 'Apple iPad ($clean)';
-    }
-    return 'Apple Device ($clean)';
+    return AppleDeviceDatabase.mapProductType(rawProductType);
   }
 
   /// Checks if Apple Mobile Device Service (usbmuxd) is running on port 27015
@@ -243,15 +187,20 @@ class AppleUsbmuxClient {
   }
 
   /// Queries the Apple device's lockdown service (port 62078) via usbmuxd tunnel for exact ProductType and ProductVersion.
-  /// Returns null safely if the device is locked, untrusted, or fails to respond.
+  /// Uses individual key queries so that Activation-locked / Hello-screen devices respond without requiring pairing.
   static Future<LockdownDeviceInfo?> queryLockdownDeviceInfo(
+    int deviceId, {
+    Duration timeout = const Duration(milliseconds: 2500),
+  }) async {
+    final (info, _) = await queryLockdownWithRawResponse(deviceId, timeout: timeout);
+    return info;
+  }
+
+  /// Establishes a tunnel through usbmuxd to the device's lockdownd service (port 62078).
+  static Future<_LockdownSession?> _connectToLockdown(
     int deviceId, {
     Duration timeout = const Duration(milliseconds: 1500),
   }) async {
-    if (mockLockdownProvider != null) {
-      return await mockLockdownProvider!(deviceId);
-    }
-
     Socket? socket;
     try {
       socket = await Socket.connect(usbmuxHost, usbmuxPort, timeout: timeout);
@@ -318,111 +267,141 @@ class AppleUsbmuxClient {
       );
 
       final isConnected = await connectCompleter.future.timeout(
-        const Duration(milliseconds: 600),
+        const Duration(milliseconds: 1000),
         onTimeout: () => false,
       );
 
+      await sub.cancel();
+
       if (!isConnected) {
-        await sub.cancel();
         await socket.close();
         return null;
       }
 
-      await sub.cancel();
-
-      // Now connected to lockdownd directly through usbmuxd tunnel.
-      // Lockdown messages: 4-byte big-endian length + XML plist.
-      const getValuePlist = '''<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>414Unlock</string>
-    <key>Request</key>
-    <string>GetValue</string>
-</dict>
-</plist>''';
-
-      final getValueBytes = utf8.encode(getValuePlist);
-      final lockHeader = ByteData(4);
-      lockHeader.setUint32(0, getValueBytes.length, Endian.big);
-
-      socket.add(lockHeader.buffer.asUint8List());
-      socket.add(getValueBytes);
-      await socket.flush();
-
-      final lockRespBuffer = BytesBuilder();
-      final lockCompleter = Completer<LockdownDeviceInfo?>();
-
-      final lockSub = socket.listen(
-        (data) {
-          lockRespBuffer.add(data);
-          final bytes = lockRespBuffer.toBytes();
-          if (bytes.length >= 4) {
-            final expectedLen = ByteData.sublistView(bytes, 0, 4).getUint32(0, Endian.big);
-            if (bytes.length >= 4 + expectedLen) {
-              final xml = utf8.decode(bytes.sublist(4, 4 + expectedLen), allowMalformed: true);
-              final info = _parseLockdownPlist(xml);
-              if (!lockCompleter.isCompleted) lockCompleter.complete(info);
-            }
-          }
-        },
-        onError: (_) {
-          if (!lockCompleter.isCompleted) lockCompleter.complete(null);
-        },
-        onDone: () {
-          if (!lockCompleter.isCompleted) lockCompleter.complete(null);
-        },
-        cancelOnError: true,
-      );
-
-      final result = await lockCompleter.future.timeout(
-        timeout,
-        onTimeout: () => null,
-      );
-
-      await lockSub.cancel();
-      await socket.close();
-      return result;
+      return _LockdownSession(socket);
     } catch (_) {
-      try {
-        await socket?.close();
-      } catch (_) {}
+      try { await socket?.close(); } catch (_) {}
       return null;
     }
   }
 
-  static LockdownDeviceInfo? _parseLockdownPlist(String xml) {
-    try {
-      // Check for error response (device locked/untrusted)
-      final errorStr = extractLockdownError(xml);
-      if (errorStr != null) {
-        AppLogger().warning('Lockdown error from device: $errorStr');
-        return null;
-      }
-
-      final typeMatch = RegExp(r'<key>ProductType<\/key>\s*<string>([^<]+)<\/string>').firstMatch(xml);
-      final verMatch = RegExp(r'<key>ProductVersion<\/key>\s*<string>([^<]+)<\/string>').firstMatch(xml);
-      final nameMatch = RegExp(r'<key>DeviceName<\/key>\s*<string>([^<]+)<\/string>').firstMatch(xml);
-      final buildMatch = RegExp(r'<key>BuildVersion<\/key>\s*<string>([^<]+)<\/string>').firstMatch(xml);
-      final udidMatch = RegExp(r'<key>UniqueDeviceID<\/key>\s*<string>([^<]+)<\/string>').firstMatch(xml);
-
-      final productType = typeMatch?.group(1)?.trim() ?? '';
-      final productVersion = verMatch?.group(1)?.trim() ?? '';
-
-      if (productType.isNotEmpty || productVersion.isNotEmpty) {
-        return LockdownDeviceInfo(
-          productType: productType,
-          productVersion: productVersion,
-          deviceName: nameMatch?.group(1)?.trim(),
-          buildVersion: buildMatch?.group(1)?.trim(),
-          udid: udidMatch?.group(1)?.trim(),
-        );
-      }
-    } catch (e) {
-      AppLogger().warning('Failed to parse lockdown plist: $e');
+  /// Enhanced lockdown query that returns raw error info alongside parsed data.
+  /// Queries individual public keys so that devices on Setup / Hello / Activation Lock screens
+  /// respond immediately without requiring device unlocking or pairing trust.
+  static Future<(LockdownDeviceInfo?, String?)> queryLockdownWithRawResponse(
+    int deviceId, {
+    Duration timeout = const Duration(milliseconds: 2500),
+  }) async {
+    if (mockLockdownProvider != null) {
+      final info = await mockLockdownProvider!(deviceId);
+      return (info, null);
     }
-    return null;
+
+    _LockdownSession? session;
+    try {
+      session = await _connectToLockdown(deviceId, timeout: timeout);
+      if (session == null) {
+        return (null, 'CONNECT_FAILED');
+      }
+
+      String? productType;
+      String? productVersion;
+      String? udid;
+      String? deviceName;
+      String? buildVersion;
+      String? activationState;
+      bool? passwordProtected;
+      String? chipId;
+      String? lastError;
+
+      // 1. ProductType (public, e.g. "iPhone14,5")
+      final pTypeXml = await session.queryKey('ProductType');
+      if (pTypeXml != null) {
+        productType = _extractStringValue(pTypeXml);
+        lastError ??= extractLockdownError(pTypeXml);
+      }
+
+      // 2. ProductVersion (public, e.g. "17.4.1")
+      final pVerXml = await session.queryKey('ProductVersion');
+      if (pVerXml != null) {
+        productVersion = _extractStringValue(pVerXml);
+        lastError ??= extractLockdownError(pVerXml);
+      }
+
+      // 3. UniqueDeviceID (UDID)
+      final udidXml = await session.queryKey('UniqueDeviceID');
+      if (udidXml != null) {
+        udid = _extractStringValue(udidXml);
+      }
+
+      // 4. BuildVersion (e.g. "21E236")
+      final bVerXml = await session.queryKey('BuildVersion');
+      if (bVerXml != null) {
+        buildVersion = _extractStringValue(bVerXml);
+      }
+
+      // 5. ActivationState ("Unactivated", "Activated", "FactoryActivated")
+      final actXml = await session.queryKey('ActivationState');
+      if (actXml != null) {
+        activationState = _extractStringValue(actXml);
+      }
+
+      // 6. DeviceName (may be restricted without pairing)
+      final nameXml = await session.queryKey('DeviceName');
+      if (nameXml != null) {
+        deviceName = _extractStringValue(nameXml);
+      }
+
+      // 7. PasswordProtected
+      final pwXml = await session.queryKey('PasswordProtected');
+      if (pwXml != null) {
+        if (pwXml.contains('<true/>')) {
+          passwordProtected = true;
+        } else if (pwXml.contains('<false/>')) {
+          passwordProtected = false;
+        }
+      }
+
+      // 8. UniqueChipID (ECID)
+      final chipXml = await session.queryKey('UniqueChipID');
+      if (chipXml != null) {
+        chipId = _extractIntegerValue(chipXml);
+      }
+
+      await session.close();
+
+      if ((productType != null && productType.isNotEmpty) ||
+          (productVersion != null && productVersion.isNotEmpty) ||
+          (udid != null && udid.isNotEmpty)) {
+        final info = LockdownDeviceInfo(
+          productType: productType ?? '',
+          productVersion: productVersion ?? '',
+          deviceName: deviceName,
+          buildVersion: buildVersion,
+          udid: udid,
+          activationState: activationState,
+          passwordProtected: passwordProtected,
+          chipId: chipId,
+        );
+        return (info, null);
+      }
+
+      return (null, lastError ?? 'NO_DATA');
+    } catch (e) {
+      AppLogger().warning('Lockdown query exception: $e');
+      try { await session?.close(); } catch (_) {}
+      return (null, 'EXCEPTION:$e');
+    }
+  }
+
+  static String? _extractStringValue(String xml) {
+    final match = RegExp(r'<key>Value<\/key>\s*<string>([^<]*)<\/string>').firstMatch(xml);
+    return match?.group(1)?.trim();
+  }
+
+  static String? _extractIntegerValue(String xml) {
+    final match = RegExp(r'<key>Value<\/key>\s*<integer>(\d+)<\/integer>').firstMatch(xml);
+    return match?.group(1)?.trim();
   }
 
   /// Extracts the lockdown error string from a response plist, if present.
@@ -463,97 +442,53 @@ class AppleUsbmuxClient {
     }
     return info != null;
   }
+}
 
-  /// Enhanced lockdown query that returns raw error info alongside parsed data.
-  /// Returns (info, errorReason) where errorReason is non-null on failure.
-  static Future<(LockdownDeviceInfo?, String?)> queryLockdownWithRawResponse(
-    int deviceId, {
-    Duration timeout = const Duration(milliseconds: 2500),
-  }) async {
-    if (mockLockdownProvider != null) {
-      final info = await mockLockdownProvider!(deviceId);
-      return (info, null);
-    }
+/// Helper managing length-prefixed packet communication with the iOS lockdownd daemon.
+class _LockdownSession {
+  final Socket _socket;
+  final StreamSubscription<Uint8List> _sub;
+  final _incoming = BytesBuilder();
+  Completer<String>? _pendingCompleter;
 
-    Socket? socket;
-    try {
-      socket = await Socket.connect(usbmuxHost, usbmuxPort, timeout: timeout);
-
-      // Usbmux Connect request to port 62078 (lockdown)
-      final connectPlist = '''<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>MessageType</key>
-    <string>Connect</string>
-    <key>ClientVersionString</key>
-    <string>414Unlock</string>
-    <key>ProgName</key>
-    <string>414Unlock</string>
-    <key>DeviceID</key>
-    <integer>$deviceId</integer>
-    <key>PortNumber</key>
-    <integer>32498</integer>
-</dict>
-</plist>''';
-
-      final connectBytes = utf8.encode(connectPlist);
-      final totalLen = 16 + connectBytes.length;
-
-      final header = ByteData(16);
-      header.setUint32(0, totalLen, Endian.little);
-      header.setUint32(4, 1, Endian.little);
-      header.setUint32(8, 8, Endian.little);
-      header.setUint32(12, 1, Endian.little);
-
-      socket.add(header.buffer.asUint8List());
-      socket.add(connectBytes);
-      await socket.flush();
-
-      // Read usbmux response (connect confirmation)
-      final connectRespBuffer = BytesBuilder();
-      final connectCompleter = Completer<bool>();
-
-      late final StreamSubscription<Uint8List> sub;
-      sub = socket.listen(
-        (data) {
-          connectRespBuffer.add(data);
-          final bytes = connectRespBuffer.toBytes();
-          if (bytes.length >= 16) {
-            final expectedLen = ByteData.sublistView(bytes, 0, 4).getUint32(0, Endian.little);
-            if (bytes.length >= expectedLen) {
-              final payload = utf8.decode(bytes.sublist(16, expectedLen), allowMalformed: true);
-              final isSuccess = payload.contains('<key>Number</key>') && payload.contains('<integer>0</integer>');
-              if (!connectCompleter.isCompleted) {
-                connectCompleter.complete(isSuccess);
-              }
-            }
-          }
-        },
-        onError: (_) {
-          if (!connectCompleter.isCompleted) connectCompleter.complete(false);
-        },
-        onDone: () {
-          if (!connectCompleter.isCompleted) connectCompleter.complete(false);
-        },
-        cancelOnError: true,
-      );
-
-      final isConnected = await connectCompleter.future.timeout(
-        const Duration(milliseconds: 1200),
-        onTimeout: () => false,
-      );
-
-      if (!isConnected) {
-        await sub.cancel();
-        await socket.close();
-        return (null, 'CONNECT_FAILED');
+  _LockdownSession(this._socket) : _sub = _socket.listen(null) {
+    _sub.onData((chunk) {
+      _incoming.add(chunk);
+      _checkBuffer();
+    });
+    _sub.onError((_) {
+      if (_pendingCompleter != null && !_pendingCompleter!.isCompleted) {
+        _pendingCompleter!.complete('');
       }
+    });
+    _sub.onDone(() {
+      if (_pendingCompleter != null && !_pendingCompleter!.isCompleted) {
+        _pendingCompleter!.complete('');
+      }
+    });
+  }
 
-      await sub.cancel();
+  void _checkBuffer() {
+    final bytes = _incoming.toBytes();
+    if (bytes.length >= 4) {
+      final expectedLen = ByteData.sublistView(bytes, 0, 4).getUint32(0, Endian.big);
+      if (bytes.length >= 4 + expectedLen) {
+        final payload = utf8.decode(bytes.sublist(4, 4 + expectedLen), allowMalformed: true);
+        final remaining = bytes.sublist(4 + expectedLen);
+        _incoming.clear();
+        _incoming.add(remaining);
 
-      // Now connected to lockdownd directly through usbmuxd tunnel.
-      const getValuePlist = '''<?xml version="1.0" encoding="UTF-8"?>
+        final c = _pendingCompleter;
+        _pendingCompleter = null;
+        if (c != null && !c.isCompleted) {
+          c.complete(payload);
+        }
+      }
+    }
+  }
+
+  Future<String?> queryKey(String key, {Duration timeout = const Duration(milliseconds: 600)}) async {
+    final xml = '''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -561,67 +496,32 @@ class AppleUsbmuxClient {
     <string>414Unlock</string>
     <key>Request</key>
     <string>GetValue</string>
+    <key>Key</key>
+    <string>$key</string>
 </dict>
 </plist>''';
+    final bytes = utf8.encode(xml);
+    final header = ByteData(4)..setUint32(0, bytes.length, Endian.big);
 
-      final getValueBytes = utf8.encode(getValuePlist);
-      final lockHeader = ByteData(4);
-      lockHeader.setUint32(0, getValueBytes.length, Endian.big);
+    final completer = Completer<String>();
+    _pendingCompleter = completer;
 
-      socket.add(lockHeader.buffer.asUint8List());
-      socket.add(getValueBytes);
-      await socket.flush();
+    _socket.add(header.buffer.asUint8List());
+    _socket.add(bytes);
+    await _socket.flush();
 
-      final lockRespBuffer = BytesBuilder();
-      final lockCompleter = Completer<String>();
-
-      final lockSub = socket.listen(
-        (data) {
-          lockRespBuffer.add(data);
-          final bytes = lockRespBuffer.toBytes();
-          if (bytes.length >= 4) {
-            final expectedLen = ByteData.sublistView(bytes, 0, 4).getUint32(0, Endian.big);
-            if (bytes.length >= 4 + expectedLen) {
-              final xml = utf8.decode(bytes.sublist(4, 4 + expectedLen), allowMalformed: true);
-              if (!lockCompleter.isCompleted) lockCompleter.complete(xml);
-            }
-          }
-        },
-        onError: (_) {
-          if (!lockCompleter.isCompleted) lockCompleter.complete('');
-        },
-        onDone: () {
-          if (!lockCompleter.isCompleted) lockCompleter.complete('');
-        },
-        cancelOnError: true,
-      );
-
-      final rawXml = await lockCompleter.future.timeout(
-        timeout,
-        onTimeout: () => 'TIMEOUT',
-      );
-
-      await lockSub.cancel();
-      await socket.close();
-
-      if (rawXml == 'TIMEOUT') {
-        return (null, 'TIMEOUT');
-      }
-      if (rawXml.isEmpty) {
-        return (null, 'EMPTY_RESPONSE');
-      }
-
-      final info = _parseLockdownPlist(rawXml);
-      final errorStr = info == null ? extractLockdownError(rawXml) : null;
-      return (info, errorStr);
-    } on TimeoutException {
-      try { await socket?.close(); } catch (_) {}
-      return (null, 'TIMEOUT');
-    } catch (e) {
-      AppLogger().warning('Lockdown query error: $e');
-      try { await socket?.close(); } catch (_) {}
-      return (null, 'EXCEPTION:$e');
+    try {
+      final resp = await completer.future.timeout(timeout);
+      return resp;
+    } catch (_) {
+      _pendingCompleter = null;
+      return null;
     }
+  }
+
+  Future<void> close() async {
+    await _sub.cancel();
+    await _socket.close();
   }
 }
 

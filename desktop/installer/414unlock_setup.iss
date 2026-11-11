@@ -2,11 +2,11 @@
 ; Conforms to APP_UPDATE_CONTRACT.md and includes pre-install update check.
 
 #define MyAppName "414Unlock"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "414Unlock"
 #define MyAppURL "https://414unlock.pages.dev"
 #define MyAppExeName "414Unlock.exe"
-#define UpdateEndpoint "https://414unlock-auth-api.414unlock.workers.dev/api/app/update?version=1.0.0&platform=windows"
+#define UpdateEndpoint "https://414unlock-auth-api.414unlock.workers.dev/api/app/update?version=1.0.1&platform=windows"
 
 [Setup]
 AppId={{9F82A45C-1D38-4C8D-981F-E31976A0350B}

@@ -18,8 +18,8 @@ class AppUpdateService extends ChangeNotifier {
       'https://414unlock-auth-api.414unlock.workers.dev/api/app/update';
 
   /// Authoritative packaged application version.
-  /// Must match pubspec.yaml version (1.0.0+1) and Runner.rc.
-  static const String currentAppVersion = '1.0.0';
+  /// Must match pubspec.yaml version (1.0.1+2) and Runner.rc.
+  static const String currentAppVersion = '1.0.1';
 
   Timer? _periodicTimer;
   UpdateCheckResult? _latestResult;

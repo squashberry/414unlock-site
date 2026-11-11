@@ -14,7 +14,7 @@ void main() {
     setUp(() {
       SharedPreferences.setMockInitialValues({});
       authService = AuthService(
-        websiteUrl: 'https://squashberry.github.io/414unlock-site',
+        websiteUrl: 'https://414unlock.pages.dev',
         apiUrl: 'https://api.example.com',
       );
 
