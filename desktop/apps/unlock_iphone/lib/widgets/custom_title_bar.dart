@@ -25,7 +25,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
   bool _isMaximized = false;
   bool _isHoveringTrafficLights = false;
 
-  static const String _kSupportUrl = 'https://squashberry.github.io/414unlock-site/support.html';
+  static const String _kSupportUrl = 'https://414unlock.pages.dev/support.html';
 
   @override
   void initState() {

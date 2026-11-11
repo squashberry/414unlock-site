@@ -38,7 +38,7 @@ Model pricing on the server reflects the published 414Unlock iPhone price bands 
 ## Customer unlock progress links
 
 - `POST /api/orders/:id/tracking-link` — authenticated approved Software / repair professionals generate a customer link only for an unlock order they own. The raw random token is returned once in the link fragment; D1 stores only its keyed hash. Links expire after 90 days, and generating a replacement revokes the previous link.
-- `POST /api/public/unlock-status` — public status lookup using the token in the request body. It returns the device model, masked identifier, current service status and safe timestamps only. Customers do not need an account, and full IMEI/serial, customer email and account data are never returned.
+- `POST /api/public/unlock-status` — public status lookup using the token in the request body. It returns the device model, identifier type, masked identifier, current service status and safe request/processing/completion timestamps only. Customers do not need an account, and full IMEI/serial, customer email and account data are never returned.
 - The web dashboard and mobile app dashboard show the generate/copy/share action only to approved professional unlockers for their own unlock orders.
 
 The public checkout URLs in `site-config.js` remain intentionally blank until the real custom-amount SquashberryPay merchant checkout link and reference-handling behavior are confirmed. Do not replace them with the provider homepage or a guessed URL.

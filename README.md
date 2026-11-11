@@ -51,4 +51,7 @@ The Flutter Windows app should launch \`account.html?flow=signin&return=app&stat
 
 ## Unlock service progress links
 
-Approved Software / repair professionals can generate a customer progress link from their own unlock orders in the mobile app dashboard (`mobile.html`) or web dashboard (`dashboard.html`). Customers open the public tracking page (`track.html`) without signing in. The random link token is kept in the URL fragment, stored as a hash in D1, expires after 90 days, and is revoked when a replacement is generated. Customer status responses expose only a masked device identifier and service progress.
+Approved Software / repair professionals can generate a customer progress link from their own unlock orders in the mobile app dashboard (`mobile.html`) or web dashboard (`dashboard.html`). Customers open the public tracking page (`track.html`) without signing in. The random link token is kept in the URL fragment, stored as a hash in D1, expires after 90 days, and is revoked when a replacement is generated. Customer status responses expose only the device model, identifier type, masked device identifier, current service status, and safe request/processing/completion dates; full IMEI/serial numbers and account details are never shown.
+
+
+The customer tracking page displays the device model, identifier type, masked identifier, request received date, processing start date when available, current unlock status, last update, and completion date when complete. It never displays a full IMEI/serial or account details.

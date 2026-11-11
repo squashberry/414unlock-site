@@ -103,7 +103,7 @@ class PaymentSessionInfo {
 
 class AuthService extends ChangeNotifier {
   static const String defaultWebsiteBaseUrl =
-      'https://squashberry.github.io/414unlock-site';
+      'https://414unlock.pages.dev';
   static const String defaultApiBaseUrl = ''; // will be read from site-config or config
 
   static const String _kAuthToken = 'auth_jwt_token';

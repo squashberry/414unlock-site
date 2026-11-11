@@ -208,7 +208,7 @@ function isSupportedCountry(request) { const cf=request&&request.cf||{};const co
 function countryNotSupported(headers) { return json({ error:"COUNTRY_NOT_SUPPORTED", message:"Sorry, this country isn't supported. Contact us at 414unlock@gmail.com if you have any questions or requests." },403,headers); }
 function isOriginAllowed(origin, env) {
   if (!origin) return true;
-  const allowed = (env.SITE_ORIGIN || "https://squashberry.github.io").split(",").map((x) => x.trim()).filter(Boolean);
+  const allowed = (env.SITE_ORIGIN || "https://414unlock.pages.dev").split(",").map((x) => x.trim()).filter(Boolean);
   return allowed.includes(origin) || origin === "http://127.0.0.1" || origin === "http://localhost";
 }
 function corsHeaders(origin, env) {
@@ -221,7 +221,7 @@ function corsHeaders(origin, env) {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer"
   };
-  if (isOriginAllowed(origin, env)) h["Access-Control-Allow-Origin"] = origin || (env.SITE_ORIGIN || "https://squashberry.github.io").split(",")[0].trim();
+  if (isOriginAllowed(origin, env)) h["Access-Control-Allow-Origin"] = origin || (env.SITE_ORIGIN || "https://414unlock.pages.dev").split(",")[0].trim();
   return h;
 }
 function json(value, status, headers) {

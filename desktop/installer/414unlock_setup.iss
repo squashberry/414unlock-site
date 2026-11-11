@@ -4,7 +4,7 @@
 #define MyAppName "414Unlock"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "414Unlock"
-#define MyAppURL "https://squashberry.github.io/414unlock-site"
+#define MyAppURL "https://414unlock.pages.dev"
 #define MyAppExeName "414Unlock.exe"
 #define UpdateEndpoint "https://414unlock-auth-api.414unlock.workers.dev/api/app/update?version=1.0.0&platform=windows"
 
