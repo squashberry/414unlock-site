@@ -1,6 +1,6 @@
 # 414Unlock Cloudflare Worker API
 
-This is the server-side API for the 414Unlock website. It is separate from GitHub Pages. Do not collect real identity documents, device identifiers, or payment references until this Worker is deployed, configured and reviewed.
+This is the server-side API for the 414Unlock website. It is separate from the Cloudflare Pages static frontend. Do not collect real identity documents, device identifiers, or payment references until this Worker is deployed, configured and reviewed.
 
 ## Provision resources
 
@@ -16,7 +16,7 @@ This is the server-side API for the 414Unlock website. It is separate from GitHu
 8. Set `API_BASE_URL` in the public `site-config.js` to the resulting Worker URL.
 9. Configure `SQUASHBERRYPAY_TOPUP_URL` only after verifying the real checkout URL, amount format and reference handling. This browser value must not contain any secret.
 
-The `DEVICE_DATA_ENCRYPTION_KEY` must be a high-entropy random secret of at least 32 characters. The Worker derives an AES-GCM key from it. Back it up securely: if it is lost, previously stored device identifiers cannot be decrypted. Do not rotate it without a planned re-encryption migration. The public Pages origin is `https://squashberry.github.io`; CORS is origin-checked.
+The `DEVICE_DATA_ENCRYPTION_KEY` must be a high-entropy random secret of at least 32 characters. The Worker derives an AES-GCM key from it. Back it up securely: if it is lost, previously stored device identifiers cannot be decrypted. Do not rotate it without a planned re-encryption migration. The official public Pages origin is `https://414unlock.pages.dev`; CORS is origin-checked.
 
 ## Wallet and top-up workflow
 
@@ -34,6 +34,14 @@ The `DEVICE_DATA_ENCRYPTION_KEY` must be a high-entropy random secret of at leas
 The account verification workflow gates top-ups and service requests. Customers must assert that they own the device or have permission from its owner. Full serial/IMEI values are encrypted in D1 using `DEVICE_DATA_ENCRYPTION_KEY`; customer responses show only the masked suffix. Only `ADMIN_EMAILS` can use the admin queue. Do not expose raw identifiers in URLs or logs.
 
 Model pricing on the server reflects the published 414Unlock iPhone price bands (whole GMD): D1,550 through iPhone X; D1,550 for XR / XS / XS Max and SE (2nd/3rd gen); D2,050 for iPhone 11/12; D2,550 for iPhone 13/14; D3,050 for iPhone 15; and D3,550 for iPhone 16. The public services page also documents vendor-advertised iPhone/iPad compatibility; iPad orders remain quote-only until an iPad price and order flow are published. Live HiCellTek IMEI/TAC checks are D150. A completed lookup can be applied once as a D150 credit against the same device's unlock request started within seven days. A TAC match identifies a device family but does not verify authenticity, ownership, blacklist/stolen status or carrier-lock status.
+
+## Customer unlock progress links
+
+- `POST /api/orders/:id/tracking-link` — authenticated approved Software / repair professionals generate a customer link only for an unlock order they own. The raw random token is returned once in the link fragment; D1 stores only its keyed hash. Links expire after 90 days, and generating a replacement revokes the previous link.
+- `POST /api/public/unlock-status` — public status lookup using the token in the request body. It returns the device model, masked identifier, current service status and safe timestamps only. Customers do not need an account, and full IMEI/serial, customer email and account data are never returned.
+- The web dashboard and mobile app dashboard show the generate/copy/share action only to approved professional unlockers for their own unlock orders.
+
+The public checkout URLs in `site-config.js` remain intentionally blank until the real custom-amount SquashberryPay merchant checkout link and reference-handling behavior are confirmed. Do not replace them with the provider homepage or a guessed URL.
 
 ## Existing desktop payment session API
 
@@ -100,7 +108,7 @@ The backend source is committed, but this repository does not contain Cloudflare
 2. Under **Settings → Secrets and variables → Actions → Variables**, add `SQUASHBERRYPAY_TOPUP_URL`. This must be the official **custom-amount** SquashberryPay checkout link you created in the SquashberryPay merchant dashboard. A fixed-price product link cannot collect arbitrary wallet top-up amounts. The checkout URL is public configuration, so do not put secrets in it.
 3. Open **Actions → Deploy 414Unlock backend → Run workflow**. Enter the email address that should have administrator access. Use the Workers.dev account subdomain shown in Cloudflare; the default input is `squashberrypay`.
 4. The workflow checks its required settings before infrastructure changes, reuses the named D1 database if it exists, creates it only if missing, applies all tracked migrations, deploys the Worker, preserves existing JWT and device-encryption secrets (generating them only when absent), configures Cloudinary secrets and administrator access, then checks `/api/health` including browser-security readiness. Only after a successful health check does it write the API URL into `site-config.js`.
-5. Confirm the latest GitHub Pages build publishes the updated `site-config.js`, then test direct signup, browser verification, admin login, wallet top-up and service ordering with a small non-production test before accepting real payments or device details.
+5. Confirm the latest Cloudflare Pages production deployment publishes the updated `site-config.js`, then test direct signup, browser verification, admin login, wallet top-up and service ordering with a small non-production test before accepting real payments or device details.
 
 ### Payment handling is deliberately manual
 
