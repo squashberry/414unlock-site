@@ -105,5 +105,29 @@
     finally{setBusy(false);}
   });
   changeMode(mode);
+  // Reuse an existing browser login, but still exchange it for a one-time
+  // desktop-app code rather than leaving the user on the website dashboard.
+  async function resumeExistingAppSession(){
+    if(!returnToApp||!appState)return;
+    var existingToken=session&&session.getToken?session.getToken():"";
+    if(!existingToken)return;
+    setBusy(true);
+    showMessage("Checking your existing 414Unlock session…","info");
+    try{
+      var me=await request("/api/auth/me",{method:"GET",headers:{"Authorization":"Bearer "+existingToken,"Accept":"application/json"},cache:"no-store"});
+      if(!me||!me.user)throw new Error("Your existing session could not be confirmed.");
+      await routeAuthenticated(existingToken,"signin");
+    }catch(err){
+      if(/401|403|AUTH_REQUIRED|SESSION_INVALID|TOKEN_INVALID/i.test(String(err.message||""))){
+        if(session&&session.clear)session.clear();
+        hideBrowserState();
+        showMessage("Your saved website session has expired. Sign in below to continue to the desktop app.","info");
+      }else{
+        hideBrowserState();
+        showMessage(err.message||"Could not complete desktop app sign-in. Please try again.","error");
+      }
+    }finally{setBusy(false);}
+  }
+  resumeExistingAppSession();
   if(!api||api.includes("YOUR_")||api.includes("example.workers.dev"))document.getElementById("api-notice").classList.remove("hidden");else document.getElementById("api-notice").classList.add("hidden");
 })();
