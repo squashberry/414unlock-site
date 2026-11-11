@@ -207,7 +207,11 @@ window.UNLOCK414_CONFIG = Object.freeze({
     renderNavigation(fallbackSignedIn);
     validateSession().then(function (auth) {
       if (auth.signedIn !== fallbackSignedIn) renderNavigation(auth.signedIn);
-      if (isAccountPage() && auth.signedIn) window.location.replace(accountDestination());
+      if (isAccountPage() && auth.signedIn) {
+        var params = new URLSearchParams(window.location.search || "");
+        // Keep desktop-app auth on account.js so it can complete the one-time code handoff.
+        if (params.get("return") !== "app") window.location.replace(accountDestination());
+      }
     });
   }
 
