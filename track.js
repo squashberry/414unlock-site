@@ -19,6 +19,7 @@ function dateText(value){
 }
 function showError(message){
  errorPanel.hidden=false;
+ document.getElementById("update-banner").dataset.state="error";
  document.getElementById("error-message").textContent=message||"This status link may be invalid or expired. Ask 414Unlock for a new link.";
  badge.className="status-badge error";
  badge.textContent="Link unavailable";
@@ -26,19 +27,27 @@ function showError(message){
  summary.textContent="The customer report is temporarily unavailable.";
  updated.textContent="Please check the tracking link and try again.";
 }
-function setRing(id,value){
+function pct(v){return v===null||v===undefined||v===""?"—":v+"%";}
+function gb(v){return v===null||v===undefined||v===""?"—":v+" GB";}
+function mark(id,tone){var n=document.getElementById(id);if(!n)return;n.classList.remove("value-good","value-warn","value-bad");if(tone)n.classList.add("value-"+tone);}
+function setRing(id,value,kind){
  var ring=document.getElementById(id);
  if(!ring)return;
+ var has=!(value===null||value===undefined||value==="");
  var n=Math.max(0,Math.min(100,Number(value)||0));
- ring.style.setProperty("--value",n);
+ ring.style.setProperty("--value",has?n:0);
+ ring.classList.remove("good","warn","bad");
+ if(!has)return;
+ var good=kind==="battery"?80:25,warn=kind==="battery"?60:10;
+ ring.classList.add(n>=good?"good":n>=warn?"warn":"bad");
 }
 function renderDetails(order){
  var d=order.deviceDetails||{};
  var model=order.deviceModel||"iPhone";
- text("device-model",d.deviceFamily||"iPhone 13");
- text("device-capacity",(d.diskCapacityGb||128)+" GB");
- text("device-colour",d.colour||"Starlight");
- text("phone-model-label",(d.deviceFamily||"iPhone 13")+" · "+(d.colour||"Starlight"));
+ text("device-model",d.deviceFamily||model);
+ text("device-capacity",gb(d.diskCapacityGb));
+ text("device-colour",d.colour);
+ text("phone-model-label",[d.deviceFamily||model,d.colour].filter(Boolean).join(" · "));
  text("device-activation-state",d.deviceActivationDisplay||"Device status available");
  text("device-subtitle",[d.diskCapacityGb?d.diskCapacityGb+" GB":null,d.iosVersion||null,d.colour||null].filter(Boolean).join(" · "));
  text("ios-version",d.iosVersion);
@@ -58,18 +67,20 @@ function renderDetails(order){
  text("crash-logs",d.crashLogs);
  text("charging-status",d.chargingStatus);
  text("device-state",d.deviceActivationDisplay||"—");
- text("battery-health",(d.batteryHealthPercent??"—")+"%");
+ text("battery-health",pct(d.batteryHealthPercent));
  text("battery-cycles",d.batteryCycleCount);
- text("disk-capacity",(d.diskCapacityGb??"—")+" GB");
- text("available-capacity",(d.availableCapacityGb??"—")+" GB");
- text("storage-percent",(d.availableCapacityPercent??"—")+"%");
- var battery=Number(d.batteryHealthPercent)||0;
- var storage=Number(d.availableCapacityPercent)||0;
- setRing("battery-ring",battery);
- setRing("storage-ring",storage);
- var bb=document.getElementById("battery-bar"),sb=document.getElementById("storage-bar");
- if(bb)bb.style.width=Math.max(0,Math.min(100,battery))+"%";
- if(sb)sb.style.width=Math.max(0,Math.min(100,storage))+"%";
+ text("disk-capacity",gb(d.diskCapacityGb));
+ text("available-capacity",gb(d.availableCapacityGb));
+ text("storage-percent",pct(d.availableCapacityPercent));
+ setRing("battery-ring",d.batteryHealthPercent,"battery");
+ setRing("storage-ring",d.availableCapacityPercent,"storage");
+ var act=String(d.activationStatus||"").toLowerCase(),jb=String(d.jailbreakStatus||"").toLowerCase();
+ mark("activation-status",/^(yes|activated|true)/.test(act)?"good":/^(no|not|false|unactivated)/.test(act)?"warn":"");
+ mark("jailbreak-status",/^(no|false|not)/.test(jb)?"good":/^(yes|true|detected)/.test(jb)?"bad":"");
+ [["id-lock-status",d.idLockStatus],["icloud-status",d.icloudStatus]].forEach(function(p){
+  var v=String(p[1]||"");
+  mark(p[0],/\b(off|disabled|clean|clear)\b/i.test(v)?"good":/\b(on|enabled|locked|lost)\b/i.test(v)?"warn":"");
+ });
 }
 function renderSteps(order){
  var host=document.getElementById("status-steps");
@@ -106,6 +117,7 @@ function render(order){
  var status=String(order.status||"").toLowerCase();
  var label=order.statusLabel||"Status update";
  badge.className="status-badge "+status;
+ document.getElementById("update-banner").dataset.state=status||"pending";
  badge.textContent=label;
  title.textContent=order.deviceModel||"iPhone device report";
  summary.textContent=order.statusMessage||"Your service status has been updated.";
@@ -123,7 +135,7 @@ function render(order){
 async function load(){
  if(!api){showError("The 414Unlock status service is not configured.");return;}
  if(!/^[a-f0-9]{64}$/i.test(token)){showError("This tracking link is incomplete or invalid.");return;}
- refresh.disabled=true;refresh.innerHTML='<span aria-hidden="true">↻</span> Loading…';
+ refresh.disabled=true;refresh.innerHTML='<span class="btn-icon" aria-hidden="true">↻</span> Loading…';
  try{
   var response=await fetch(api+"/api/public/unlock-status",{method:"POST",headers:{Accept:"application/json","Content-Type":"text/plain;charset=UTF-8"},body:token,cache:"no-store"});
   var data={};try{data=await response.json();}catch(_){}
@@ -131,7 +143,7 @@ async function load(){
   if(!data.order)throw new Error("No device report was returned for this link.");
   render(data.order);
  }catch(error){showError(error.message||"The status service is temporarily unavailable. Try again shortly.");}
- finally{refresh.disabled=false;refresh.innerHTML='<span aria-hidden="true">↻</span> Refresh';}
+ finally{document.body.classList.remove("is-loading");refresh.disabled=false;refresh.innerHTML='<span class="btn-icon" aria-hidden="true">↻</span> Refresh';}
 }
 refresh.addEventListener("click",load);
 load();
