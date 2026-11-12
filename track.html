@@ -36,10 +36,10 @@
     </div>
 
     <div class="update" id="update-banner" data-state="loading" aria-live="polite">
-      <span class="update-dot" aria-hidden="true"></span>
+      <span class="update-spinner" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 3a9 9 0 0 1 9 9"></path></svg></span>
       <div class="update-copy">
         <span class="eyebrow">Current service update</span>
-        <strong id="status-summary">Waiting for backend response.</strong>
+        <strong id="status-summary" class="status-cycle" role="status" aria-label="Payment successful. Requesting server response for bypass."><span class="cycle-payment">PAYMENT SUCCESSFUL</span><span class="cycle-bypass">REQUESTING SERVER RESPONSE FOR BYPASS</span></strong>
         <small id="last-updated">Retrieving latest status…</small>
       </div>
     </div>
