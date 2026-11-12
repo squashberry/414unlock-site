@@ -731,9 +731,9 @@ const WALLET_MODEL_PRICES = Object.freeze({
   iphone_x: 1550,
   iphone_xr: 1550,
   iphone_11_12: 2050,
-  iphone_13_14: 2550,
-  iphone_15: 3050,
-  iphone_16: 3550
+  iphone_13_14: 3050,
+  iphone_15: 3550,
+  iphone_16: 4050
 });
 const WALLET_MODEL_NAMES = Object.freeze({
   iphone_6: "iPhone 5S / 6 / 6 Plus / 6S / 6S Plus / SE (1st gen)",
