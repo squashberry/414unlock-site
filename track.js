@@ -150,7 +150,7 @@ async function load(){
  if(!/^[a-f0-9]{64}$/i.test(token)){showError("This tracking link is incomplete or invalid.");return;}
  refresh.disabled=true;refresh.innerHTML='<span class="btn-icon" aria-hidden="true">↻</span><span class="btn-label">Loading…</span>';
  try{
-  var response=await fetch(api+"/api/public/unlock-status",{method:"POST",headers:{Accept:"application/json","Content-Type":"text/plain;charset=UTF-8","Cache-Control":"no-cache"},body:token,cache:"no-store"});
+  var response=await fetch(api+"/api/public/unlock-status",{method:"POST",headers:{Accept:"application/json","Content-Type":"text/plain;charset=UTF-8"},body:token,cache:"no-store"});
   var data={};try{data=await response.json();}catch(_){}
   if(!response.ok)throw new Error(data.message||"This tracking link could not be found.");
   if(!data.order)throw new Error("No device report was returned for this link.");
