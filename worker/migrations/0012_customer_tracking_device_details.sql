@@ -1,0 +1,1 @@
+ALTER TABLE customer_tracking_links ADD COLUMN device_details_json TEXT;
