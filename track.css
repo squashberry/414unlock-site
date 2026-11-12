@@ -45,10 +45,23 @@ h1,h2,h3,p,dl,dd,ol{margin:0}
 .status-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid var(--blue-line);border-radius:99px;background:var(--blue-soft);color:var(--blue);font-size:13px;font-weight:700}
 .status-badge:before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
 .status-badge.completed{background:var(--green-soft);color:var(--green);border-color:var(--green-line)}
-.status-badge.rejected,.status-badge.error{background:var(--red-soft);color:var(--red);border-color:var(--red-line)}
+.status-badge.rejected,.status-badge.error,.status-badge.awaiting-response{background:var(--red-soft);color:var(--red);border-color:var(--red-line)}
+.status-badge.awaiting-response{text-transform:uppercase;font-weight:800}
+.status-badge.awaiting-response:before{animation:pulse 1.6s infinite}
 
 .update{display:flex;align-items:flex-start;gap:14px;margin:26px 0 30px;padding:18px 20px;border:1px solid var(--blue-line);border-radius:16px;background:var(--blue-soft);--tone:var(--blue)}
 .update-dot{width:10px;height:10px;margin-top:6px;flex:none;border-radius:50%;background:var(--tone);box-shadow:0 0 0 0 color-mix(in srgb,var(--tone) 40%,transparent);animation:pulse 2s infinite}
+.update-spinner{width:29px;height:29px;display:grid;place-items:center;flex:none;margin-top:2px;color:var(--red)}
+.update-spinner svg{width:26px;height:26px;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;fill:none;animation:spin 1.1s linear infinite}
+.update[data-state="awaiting-response"]{--tone:var(--red);background:var(--red-soft);border-color:var(--red-line)}
+.update[data-state="awaiting-response"] .update-copy .eyebrow{color:var(--red)}
+.status-cycle{display:grid;grid-template:1fr/1fr;min-height:1.35em;color:var(--red)!important;font-weight:800!important}
+.status-cycle span{grid-area:1/1;align-self:center;color:var(--red);font-weight:800;animation:statusCycle 6s ease-in-out infinite}
+.status-cycle .cycle-bypass{animation-delay:-3s}
+.status-cycle span[hidden]{display:none!important}
+.update[data-state="awaiting-response"] .update-copy small{color:#a45b61}
+.update[data-state="error"] .update-spinner{animation:none}
+.update[data-state="error"] .update-copy strong{color:var(--red)}
 .update-copy{min-width:0}
 .update-copy .eyebrow{color:color-mix(in srgb,var(--tone) 70%,#fff)}
 .update-copy strong{display:block;font:700 19px/1.3 var(--display);letter-spacing:-.02em;color:var(--ink)}
@@ -61,7 +74,7 @@ h1,h2,h3,p,dl,dd,ol{margin:0}
 .section-head h2,.card-head h2{font:700 19px/1.2 var(--display);letter-spacing:-.025em;color:#16264b}
 
 /* progress stepper */
-.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));list-style:none;padding:0;counter-reset:step}
+.steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));list-style:none;padding:0;counter-reset:step}
 .steps li{position:relative;display:flex;flex-direction:column;gap:12px;padding-right:18px;color:var(--faint)}
 .steps li:before{content:"";position:absolute;top:15px;left:42px;right:6px;height:2px;border-radius:2px;background:var(--line)}
 .steps li:last-child:before{display:none}
@@ -75,6 +88,8 @@ h1,h2,h3,p,dl,dd,ol{margin:0}
 .steps li.current .step-check{border-color:var(--blue);background:var(--blue);color:#fff;box-shadow:0 0 0 6px #2854c522}
 .steps li.current strong{color:var(--blue)}
 .steps li.current small{color:var(--muted)}
+.steps li.current .step-check{border-color:var(--red);background:var(--red);box-shadow:0 0 0 6px #b3363f22}
+.steps li.current strong{color:var(--red)}
 
 .dates{display:flex;flex-wrap:wrap;gap:14px 44px;margin-top:28px;padding-top:20px;border-top:1px solid var(--line)}
 .dates span{display:block;color:var(--faint);font-size:12px;font-weight:600}
@@ -149,6 +164,7 @@ footer span{padding:0 5px}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes shimmer{to{background-position:-200% 0}}
 @keyframes pulse{70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@keyframes statusCycle{0%,42%{opacity:1;transform:translateY(0)}50%,92%{opacity:0;transform:translateY(-5px)}100%{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){*,*:before{animation:none!important;transition:none!important}}
 
 /* responsive */
