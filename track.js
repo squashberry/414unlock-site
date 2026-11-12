@@ -9,7 +9,7 @@ var status=String(order.status||"").toLowerCase(),label=order.statusLabel||"Stat
 badge.className="badge "+status;badge.textContent=label.toUpperCase();
 var messages={submitted:"Your unlock request has been received. The service provider has not started processing it yet.",registered:"Your device has been registered for service. The next update will appear here.",processing:"Your device unlock is currently being processed. Check back for the final result.",completed:"The service provider has confirmed that your device was successfully unlocked.",rejected:"The service provider marked this request as unable to complete. Contact the person who shared this link if you need more information."};
 title.textContent=status==="completed"?"Your device was successfully unlocked":status==="rejected"?"This unlock could not be completed":label;
-summary.textContent=messages[status]||"Your device status has been updated.";
+summary.textContent=order.statusMessage||messages[status]||"Your device status has been updated.";
 document.getElementById("device-model").textContent=order.deviceModel||"Device";
 var kind=String(order.identifierKind||"").toLowerCase();
 document.getElementById("identifier-kind").textContent=({imei:"IMEI",serial:"Serial number",udid:"UDID"})[kind]||"Device identifier";
