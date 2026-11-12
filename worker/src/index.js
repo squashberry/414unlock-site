@@ -104,6 +104,7 @@ export default {
       if (request.method === "POST" && adminTopupMatch) return await reviewTopup(request, env, headers, adminTopupMatch[1]);
       const adminOrderMatch = path.match(/^\/api\/admin\/orders\/([a-f0-9]{32})\/status$/i);
       if (request.method === "POST" && adminOrderMatch) return await updateServiceOrderStatus(request, env, headers, adminOrderMatch[1]);
+      if (request.method === "POST" && path === "/api/public/unlock-status") return await getPublicUnlockStatus(request, env, headers);
       if (request.method === "POST" && path === "/api/payments/session") return await createPaymentSession(request, env, headers);
       if (request.method === "GET" && path === "/api/payments/session") return await getPaymentSession(request, env, headers, new URL(request.url));
       if (request.method === "GET" && path === "/api/payments/status") return await getPaymentStatus(request, env, headers, new URL(request.url));
@@ -1458,6 +1459,29 @@ async function updateServiceOrderStatus(request, env, headers, id) {
         nextStatus === "rejected" ? "Request rejected after processing had started; no automatic refund was applied." : "Service request status updated."
     }, 200, headers);
   } catch (error) { throwOrReturn(error, headers); }
+}
+
+async function getPublicUnlockStatus(request, env, headers) {
+  const token = (await request.text()).trim();
+  if (!/^[a-f0-9]{64}$/i.test(token)) {
+    throw new ApiError(400, "INVALID_TRACKING_LINK", "This customer tracking link is incomplete or invalid.");
+  }
+  const row = await env.DB.prepare(
+    "SELECT device_model,identifier_kind,masked_identifier,status,status_label,status_message,created_at,updated_at,processed_at,completed_at FROM customer_tracking_links WHERE tracking_token=? LIMIT 1"
+  ).bind(token.toLowerCase()).first();
+  if (!row) throw new ApiError(404, "TRACKING_LINK_NOT_FOUND", "This customer tracking link could not be found. Please contact 414Unlock.");
+  return json({ ok: true, order: {
+    deviceModel: row.device_model,
+    identifierKind: row.identifier_kind,
+    maskedIdentifier: row.masked_identifier,
+    status: row.status,
+    statusLabel: row.status_label,
+    statusMessage: row.status_message,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    processedAt: row.processed_at,
+    completedAt: row.completed_at
+  } }, 200, headers);
 }
 
 async function createPaymentSession(request, env, headers) {
