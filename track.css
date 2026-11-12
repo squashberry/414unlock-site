@@ -208,3 +208,127 @@ footer span{padding:0 5px}
   .ring{width:80px;height:80px}
   .ring span{font-size:19px}
 }
+
+
+/* Mobile-first status layout corrections */
+.status-badge{
+  max-width:100%;
+  min-width:0;
+  white-space:normal;
+  line-height:1.35;
+  overflow-wrap:anywhere;
+}
+.status-badge:before{flex:none;margin-top:4px}
+.hero-actions{min-width:0;flex-wrap:wrap}
+.update-copy{flex:1 1 0;min-width:0}
+.status-cycle{
+  position:relative;
+  display:block;
+  width:100%;
+  min-height:2.65em;
+  overflow:hidden;
+}
+.status-cycle span{
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  display:block;
+  width:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  line-height:1.25;
+}
+.dates>div{min-width:0}
+.dates strong{overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+
+@media(max-width:760px){
+  .steps li{gap:11px;padding-bottom:16px}
+  .steps li strong{font-size:14px}
+  .steps li small{font-size:12px;line-height:1.4}
+}
+@media(max-width:640px){
+  .page{width:calc(100% - 20px);margin-top:12px}
+  .hero{padding:17px 15px;border-radius:16px}
+  .hero h1{font-size:clamp(25px,7vw,32px);line-height:1.08}
+  .subtitle{font-size:13px;overflow-wrap:anywhere}
+  .hero-top{gap:12px}
+  .hero-actions{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 44px;
+    align-items:stretch;
+    gap:8px;
+    width:100%;
+  }
+  .status-badge{
+    width:100%;
+    max-width:none;
+    min-height:42px;
+    justify-content:flex-start;
+    align-items:flex-start;
+    padding:10px 12px;
+    border-radius:12px;
+    font-size:12px;
+  }
+  .status-badge:before{margin-top:3px}
+  .hero-actions .btn{
+    width:44px;
+    min-width:44px;
+    min-height:42px;
+    justify-content:center;
+    padding:0;
+    border-radius:12px;
+  }
+  .hero-actions .btn-label{display:none}
+  .hero-actions .btn-icon{font-size:21px}
+  .update{
+    align-items:flex-start;
+    gap:9px;
+    margin:17px 0 21px;
+    padding:13px 12px;
+    border-radius:13px;
+  }
+  .update-spinner{width:22px;height:22px;margin-top:3px}
+  .update-spinner svg{width:21px;height:21px}
+  .update-copy .eyebrow{font-size:10px;letter-spacing:.06em}
+  .update-copy strong{font-size:15px;line-height:1.3}
+  .status-cycle{min-height:2.7em}
+  .update-copy small{font-size:11px;line-height:1.4;overflow-wrap:anywhere}
+  .section-head{align-items:flex-start;flex-wrap:wrap;margin-bottom:16px}
+  .section-head h2{font-size:17px}
+  .section-head .pill{white-space:normal;max-width:100%;font-size:11px}
+  .steps li{padding-bottom:14px}
+  .steps li:before{top:33px;bottom:0;left:15px}
+  .step-check{width:30px;height:30px;flex:none}
+  .steps li div{padding-top:2px}
+  .dates{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px 10px;
+    margin-top:20px;
+    padding-top:16px;
+  }
+  .dates span{font-size:11px}
+  .dates strong{font-size:12px;line-height:1.4}
+  .dates-ref{margin:0;text-align:left}
+  .device-card{padding:17px}
+  .metric{padding:17px}
+  .details{padding:18px 14px 5px}
+  .group{margin-top:18px;padding:18px 0 20px}
+  .group-title{align-items:flex-start;gap:9px}
+  .group-title h3{font-size:15px}
+  .group-title p{font-size:11px;line-height:1.35}
+  .kv{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 12px}
+  .kv dt{font-size:11px}
+  .kv dd{font-size:13px;line-height:1.35}
+  .privacy-note{font-size:11px;line-height:1.45;align-items:flex-start}
+}
+@media(max-width:360px){
+  .page{width:calc(100% - 16px)}
+  .hero{padding:15px 12px}
+  .update{padding:12px 10px;gap:7px}
+  .update-copy strong{font-size:14px}
+  .kv{grid-template-columns:1fr}
+  .dates{grid-template-columns:1fr}
+  .metric{gap:12px}
+}
