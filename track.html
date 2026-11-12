@@ -3,69 +3,157 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#142b77">
+<meta name="theme-color" content="#f3f6fc">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex,nofollow">
-<title>Check unlock status · 414Unlock</title>
+<title>Device service report · 414Unlock</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="track.css">
 <script src="site-config.js"></script>
 <script defer src="track.js"></script>
-<style>
-:root{--blue:#173bba;--deep:#10245f;--ink:#121a31;--muted:#707b91;--line:#e3e8f2;--bg:#f4f6fb;--green:#17834a;--red:#b42332;--display:"Bricolage Grotesque","Segoe UI",sans-serif;--body:"Instrument Sans",system-ui,sans-serif}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.55 var(--body);min-height:100vh}
-header{height:76px;background:linear-gradient(115deg,#101a39,#18357f 70%,#2449b9);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 max(24px,calc((100% - 920px)/2));}
-.brand{display:flex;align-items:center;gap:10px;font:800 22px var(--display);letter-spacing:-.04em}.mark{padding:4px 9px;border-radius:8px;background:#e9edff;color:#183da9;font-size:18px}
-.kicker{font-size:10px;font-weight:800;letter-spacing:.17em;color:#c7d4ff}
-main{width:min(760px,calc(100% - 32px));margin:48px auto 30px}
-.card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:clamp(22px,5vw,42px);box-shadow:0 18px 50px #17254c0d}
-.badge{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border-radius:99px;background:#edf1fb;color:#53617d;font-size:12px;font-weight:800;letter-spacing:.04em}
-.badge:before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
-.badge.completed{background:#e5f6eb;color:#147342}.badge.processing,.badge.registered,.badge.submitted{background:#edf1ff;color:#2448b6}.badge.rejected,.badge.error{background:#fff0f1;color:#ad2534}
-h1{font:800 clamp(29px,5vw,42px)/1.08 var(--display);letter-spacing:-.045em;margin:18px 0 10px;color:#17234b}
-.summary{margin:0;color:var(--muted);font-size:15px;max-width:54ch}
-.details{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:28px}
-.detail{padding:16px;border:1px solid var(--line);border-radius:13px;background:#fafbfe;min-width:0}
-.detail small{display:block;color:#8a95aa;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px}
-.detail strong{display:block;color:#17234b;font-size:15px;overflow-wrap:anywhere}
-.steps{list-style:none;padding:0;margin:28px 0 0;display:grid;gap:10px}
-.steps li{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;color:#8a95aa;font-size:14px;font-weight:600}
-.steps li:before{content:"";width:9px;height:9px;border-radius:50%;background:#c7cfde;flex:0 0 9px}
-.steps li.done{color:#167143;background:#f5fbf7;border-color:#d9efe1}.steps li.done:before{background:#16844a}
-.steps li.current{color:#1d43b0;background:#f4f6ff;border-color:#dce4ff}.steps li.current:before{background:#2449bd;box-shadow:0 0 0 4px #2449bd18}
-.updated{margin-top:24px;padding-top:18px;border-top:1px solid var(--line);font-size:12px;color:#8791a5}
-.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:22px}
-button{min-height:44px;padding:0 18px;border:0;border-radius:9px;background:var(--blue);color:#fff;font:700 14px var(--body);cursor:pointer}
-button:disabled{opacity:.55;cursor:wait}
-.home{color:var(--blue);font-size:13px;font-weight:700;text-decoration:none}
-.privacy{margin:16px 8px 0;color:#818ba0;font-size:12px;text-align:center}
-footer{text-align:center;color:#8b95a8;font-size:12px;padding:20px 16px 34px}
-[hidden]{display:none!important}
-@media(max-width:560px){header{height:66px;padding:0 18px}.kicker{font-size:9px}main{margin-top:24px}.details{grid-template-columns:1fr}.card{border-radius:17px}}
-</style>
 </head>
 <body>
-<header><div class="brand"><span class="mark">414</span><span>Unlock</span></div><span class="kicker">SECURE DEVICE STATUS</span></header>
-<main>
-<section class="card" aria-live="polite">
-<div id="status-badge" class="badge">Checking status</div>
-<h1 id="status-title">Checking your device…</h1>
-<p id="status-summary" class="summary">Please wait while we retrieve the latest update.</p>
-<div id="device-details" class="details" hidden>
-<div class="detail"><small>Device model</small><strong id="device-model">—</strong></div>
-<div class="detail"><small>Identifier type</small><strong id="identifier-kind">—</strong></div>
-<div class="detail"><small>Device identifier</small><strong id="device-identifier">—</strong></div>
-<div class="detail"><small>Request received</small><strong id="request-created">—</strong></div>
-<div class="detail" id="processing-detail" hidden><small>Processing started</small><strong id="processing-started">—</strong></div>
-<div class="detail" id="completed-detail" hidden><small>Successfully unlocked</small><strong id="completed-date">—</strong></div>
-</div>
-<ol id="status-steps" class="steps" hidden></ol>
-<div id="last-updated" class="updated" hidden></div>
-<div class="actions"><button id="refresh-status" type="button">Refresh status</button><a class="home" href="index.html">414Unlock home</a></div>
-</section>
-<p class="privacy">This page only displays the device model and a masked identifier. Your full IMEI or serial number and account details are never shown here.</p>
+<header class="topbar">
+  <a class="brand" href="index.html" aria-label="414Unlock home"><span class="brand-mark">414</span><span>Unlock</span></a>
+  <div class="topbar-right"><span class="secure-dot"></span><span>SECURE DEVICE REPORT</span></div>
+</header>
+
+<main class="page-shell">
+  <section class="report-heading">
+    <div>
+      <p class="eyebrow">CUSTOMER SERVICE TRACKING</p>
+      <h1 id="status-title">iPhone 13 Starlight</h1>
+      <p class="report-subtitle" id="device-subtitle">128 GB · Device diagnostics</p>
+    </div>
+    <div class="heading-status">
+      <span id="status-badge" class="status-badge registered">Step 3 service pending</span>
+      <span class="report-ref" id="request-reference">Secure customer report</span>
+    </div>
+  </section>
+
+  <section class="status-banner" aria-live="polite">
+    <div class="status-symbol"><span></span></div>
+    <div class="status-copy">
+      <span class="eyebrow">CURRENT SERVICE UPDATE</span>
+      <strong id="status-summary">Waiting for backend response.</strong>
+      <small id="last-updated">Retrieving latest status…</small>
+    </div>
+    <button id="refresh-status" class="refresh-button" type="button"><span aria-hidden="true">↻</span> Refresh</button>
+  </section>
+
+  <section class="report-grid">
+    <aside class="device-column">
+      <article class="panel device-card">
+        <div class="panel-heading">
+          <div><p class="eyebrow">DEVICE OVERVIEW</p><h2>Your iPhone</h2></div>
+          <span class="mini-pill" id="device-capacity">128 GB</span>
+        </div>
+        <div class="phone-stage">
+          <div class="phone-frame">
+            <div class="phone-screen">
+              <div class="phone-notch"></div>
+              <div class="phone-alert"><span>!</span><strong id="device-activation-state">Device Not Activated</strong></div>
+              <div class="phone-screen-foot" id="phone-model-label">iPhone 13 · Starlight</div>
+            </div>
+          </div>
+        </div>
+        <div class="device-caption">
+          <div><span class="muted-label">MODEL</span><strong id="device-model">iPhone 13</strong></div>
+          <div><span class="muted-label">FINISH</span><strong id="device-colour">Starlight</strong></div>
+        </div>
+      </article>
+
+      <article class="panel metric-card">
+        <div class="metric-head"><div><p class="eyebrow">BATTERY</p><h2>Battery health</h2></div><div class="progress-ring battery-ring" id="battery-ring"><span id="battery-health">87%</span></div></div>
+        <div class="metric-foot"><span>Charge cycles</span><strong id="battery-cycles">359</strong></div>
+        <div class="metric-track"><span id="battery-bar"></span></div>
+        <p class="metric-note">Battery condition reported by the device.</p>
+      </article>
+
+      <article class="panel metric-card">
+        <div class="metric-head"><div><p class="eyebrow">STORAGE</p><h2>Available capacity</h2></div><div class="progress-ring storage-ring" id="storage-ring"><span id="storage-percent">76%</span></div></div>
+        <div class="storage-value"><strong id="available-capacity">97.69 GB</strong><span>of <span id="disk-capacity">128 GB</span></span></div>
+        <div class="metric-track storage-track"><span id="storage-bar"></span></div>
+        <p class="metric-note">Space currently available on the device.</p>
+      </article>
+    </aside>
+
+    <div class="details-column">
+      <article class="panel details-panel">
+        <div class="panel-heading details-heading">
+          <div><p class="eyebrow">COMPLETE DEVICE REPORT</p><h2>Device information</h2></div>
+          <span class="report-live"><span></span> From device scan</span>
+        </div>
+
+        <section class="detail-group">
+          <div class="group-title"><span class="group-icon">01</span><div><h3>Model & software</h3><p>Hardware identity and operating system</p></div></div>
+          <div class="info-grid">
+            <div class="info-item"><span>iOS version</span><strong id="ios-version">18.3 (22D5055b)</strong></div>
+            <div class="info-item"><span>Model identifier</span><strong id="model-identifier">iPhone14,5</strong></div>
+            <div class="info-item"><span>Model number</span><strong id="model-number">A2633</strong></div>
+            <div class="info-item"><span>Model name</span><strong id="model-name">MLPG3 QN/A</strong></div>
+            <div class="info-item"><span>Sales region</span><strong id="sales-region">QN/A</strong></div>
+            <div class="info-item"><span>Manufacture date</span><strong id="manufacture-date">06/06/2023</strong></div>
+            <div class="info-item"><span>Warranty</span><strong id="warranty-status">Out of Warranty</strong></div>
+            <div class="info-item"><span>Charging state</span><strong id="charging-status">Not Charging</strong></div>
+          </div>
+        </section>
+
+        <section class="detail-group">
+          <div class="group-title"><span class="group-icon">02</span><div><h3>Device identifiers</h3><p>Protected values are partially hidden for privacy</p></div></div>
+          <div class="info-grid">
+            <div class="info-item"><span>Serial number</span><strong class="protected-value" id="serial-number">••••••91W9</strong></div>
+            <div class="info-item"><span>IMEI 1</span><strong class="protected-value" id="imei-one">•••••••••••3506</strong></div>
+            <div class="info-item"><span>IMEI 2</span><strong class="protected-value" id="imei-two">•••••••••••7020</strong></div>
+          </div>
+        </section>
+
+        <section class="detail-group">
+          <div class="group-title"><span class="group-icon">03</span><div><h3>Activation & security</h3><p>Current activation and account-lock indicators</p></div></div>
+          <div class="info-grid">
+            <div class="info-item"><span>Activation</span><strong id="activation-status" class="value-warning">No</strong></div>
+            <div class="info-item"><span>Jailbreak</span><strong id="jailbreak-status" class="value-good">No</strong></div>
+            <div class="info-item"><span>ID Lock</span><strong id="id-lock-status">Unknown</strong></div>
+            <div class="info-item"><span>iCloud</span><strong id="icloud-status">Unknown</strong></div>
+          </div>
+        </section>
+
+        <section class="detail-group last-group">
+          <div class="group-title"><span class="group-icon">04</span><div><h3>Diagnostics</h3><p>Additional scan information</p></div></div>
+          <div class="info-grid compact-grid">
+            <div class="info-item"><span>Crash logs</span><strong id="crash-logs">0</strong></div>
+            <div class="info-item"><span>Device state</span><strong id="device-state">Not activated</strong></div>
+          </div>
+        </section>
+      </article>
+
+      <article class="panel progress-panel">
+        <div class="panel-heading"><div><p class="eyebrow">SERVICE WORKFLOW</p><h2>Request progress</h2></div><span class="mini-pill" id="progress-label">Step 3 of 4</span></div>
+        <ol class="progress-steps" id="status-steps">
+          <li class="done"><span class="step-check">✓</span><div><strong>Request received</strong><small>Your device details were recorded.</small></div></li>
+          <li class="done"><span class="step-check">✓</span><div><strong>Device diagnostics</strong><small>Initial device information is available.</small></div></li>
+          <li class="current"><span class="step-check">3</span><div><strong>Service pending</strong><small>Waiting for backend response.</small></div></li>
+          <li><span class="step-check">4</span><div><strong>Service completed</strong><small>The final result will appear here.</small></div></li>
+        </ol>
+        <div class="date-strip">
+          <div><span>Request received</span><strong id="request-created">—</strong></div>
+          <div id="processing-detail" hidden><span>Processing started</span><strong id="processing-started">—</strong></div>
+          <div id="completed-detail" hidden><span>Completed</span><strong id="completed-date">—</strong></div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section id="error-panel" class="panel error-panel" hidden>
+    <strong id="error-title">Unable to load this report</strong>
+    <p id="error-message">Check the tracking link and try again.</p>
+    <button class="refresh-button" type="button" onclick="document.getElementById('refresh-status').click()">Try again</button>
+  </section>
+  <p class="privacy-note">This secure page is intended for the customer who received the link. Full serial and IMEI values are never displayed.</p>
 </main>
-<footer>414Unlock · Customer status check</footer>
+
+<footer>414Unlock <span>·</span> Customer device report</footer>
 </body>
 </html>
