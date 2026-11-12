@@ -1467,9 +1467,14 @@ async function getPublicUnlockStatus(request, env, headers) {
     throw new ApiError(400, "INVALID_TRACKING_LINK", "This customer tracking link is incomplete or invalid.");
   }
   const row = await env.DB.prepare(
-    "SELECT device_model,identifier_kind,masked_identifier,status,status_label,status_message,created_at,updated_at,processed_at,completed_at FROM customer_tracking_links WHERE tracking_token=? LIMIT 1"
+    "SELECT device_model,identifier_kind,masked_identifier,status,status_label,status_message,device_details_json,created_at,updated_at,processed_at,completed_at FROM customer_tracking_links WHERE tracking_token=? LIMIT 1"
   ).bind(token.toLowerCase()).first();
   if (!row) throw new ApiError(404, "TRACKING_LINK_NOT_FOUND", "This customer tracking link could not be found. Please contact 414Unlock.");
+  let deviceDetails = {};
+  try {
+    const parsed = JSON.parse(row.device_details_json || "{}");
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) deviceDetails = parsed;
+  } catch (_) { deviceDetails = {}; }
   return json({ ok: true, order: {
     deviceModel: row.device_model,
     identifierKind: row.identifier_kind,
@@ -1477,6 +1482,7 @@ async function getPublicUnlockStatus(request, env, headers) {
     status: row.status,
     statusLabel: row.status_label,
     statusMessage: row.status_message,
+    deviceDetails,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     processedAt: row.processed_at,
