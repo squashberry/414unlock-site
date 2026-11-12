@@ -90,9 +90,9 @@ function renderSteps(order){
  if(!stage){stage=status==="submitted"?1:status==="registered"?2:status==="processing"?3:status==="completed"?4:0;}
  if(/step\s*3/i.test(String(order.statusLabel||"")))stage=3;
  var items=[
-  ["Request received","Your device details were recorded."],
-  ["Device diagnostics","Initial device information is available."],
-  ["Service pending","The service provider is awaiting a backend response."],
+  ["Payment successful","Your payment has been received successfully."],
+  ["Awaiting verification","Your payment and device details are waiting to be verified."],
+  ["Backend response","The service provider's system will return the next update."],
   ["Service completed","The final service result will appear here."]
  ];
  if(status==="rejected"){stage=0;}
