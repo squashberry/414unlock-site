@@ -35,12 +35,12 @@ function setRing(id,value){
 function renderDetails(order){
  var d=order.deviceDetails||{};
  var model=order.deviceModel||"iPhone";
- text("device-model",d.modelName||model);
+ text("device-model",d.deviceFamily||"iPhone 13");
  text("device-capacity",(d.diskCapacityGb||128)+" GB");
  text("device-colour",d.colour||"Starlight");
- text("phone-model-label",(d.modelName||"iPhone 13")+" · "+(d.colour||"Starlight"));
+ text("phone-model-label",(d.deviceFamily||"iPhone 13")+" · "+(d.colour||"Starlight"));
  text("device-activation-state",d.deviceActivationDisplay||"Device status available");
- text("device-subtitle",[d.diskCapacityGb?d.diskCapacityGb+" GB":null,d.iosVersion||"iOS details",d.colour||null].filter(Boolean).join(" · "));
+ text("device-subtitle",[d.diskCapacityGb?d.diskCapacityGb+" GB":null,d.iosVersion||null,d.colour||null].filter(Boolean).join(" · "));
  text("ios-version",d.iosVersion);
  text("serial-number",d.serialNumber);
  text("imei-one",d.imei1);
@@ -107,7 +107,7 @@ function render(order){
  var label=order.statusLabel||"Status update";
  badge.className="status-badge "+status;
  badge.textContent=label;
- title.textContent=order.deviceDetails&&order.deviceDetails.modelName?order.deviceDetails.modelName:"iPhone device report";
+ title.textContent=order.deviceModel||"iPhone device report";
  summary.textContent=order.statusMessage||"Your service status has been updated.";
  text("request-reference","414Unlock service request");
  text("request-created",dateText(order.createdAt));
