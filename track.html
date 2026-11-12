@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#f3f6fc">
+<meta name="theme-color" content="#f4f6fb">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex,nofollow">
 <title>Device service report · 414Unlock</title>
@@ -14,144 +14,163 @@
 <script src="site-config.js"></script>
 <script defer src="track.js"></script>
 </head>
-<body>
+<body class="is-loading">
 <header class="topbar">
   <a class="brand" href="index.html" aria-label="414Unlock home"><span class="brand-mark">414</span><span>Unlock</span></a>
-  <div class="topbar-right"><span class="secure-dot"></span><span>SECURE DEVICE REPORT</span></div>
+  <div class="secure-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Secure device report</span></div>
 </header>
 
-<main class="page-shell">
-  <section class="report-heading">
-    <div>
-      <p class="eyebrow">CUSTOMER SERVICE TRACKING</p>
-      <h1 id="status-title">iPhone 13 Starlight</h1>
-      <p class="report-subtitle" id="device-subtitle">128 GB · Device diagnostics</p>
+<main class="page">
+
+  <section class="panel hero" aria-labelledby="status-title">
+    <div class="hero-top">
+      <div class="hero-id">
+        <p class="eyebrow">Customer service tracking</p>
+        <h1 id="status-title">Device service report</h1>
+        <p class="subtitle" id="device-subtitle">Retrieving device details…</p>
+      </div>
+      <div class="hero-actions">
+        <span id="status-badge" class="status-badge">Loading</span>
+        <button id="refresh-status" class="btn" type="button"><span class="btn-icon" aria-hidden="true">↻</span> Refresh</button>
+      </div>
     </div>
-    <div class="heading-status">
-      <span id="status-badge" class="status-badge registered">Step 3 service pending</span>
-      <span class="report-ref" id="request-reference">Secure customer report</span>
+
+    <div class="update" id="update-banner" data-state="loading" aria-live="polite">
+      <span class="update-dot" aria-hidden="true"></span>
+      <div class="update-copy">
+        <span class="eyebrow">Current service update</span>
+        <strong id="status-summary">Waiting for backend response.</strong>
+        <small id="last-updated">Retrieving latest status…</small>
+      </div>
+    </div>
+
+    <div class="section-head">
+      <h2>Request progress</h2>
+      <span class="pill" id="progress-label">Step — of 4</span>
+    </div>
+    <ol class="steps" id="status-steps">
+      <li><span class="step-check">1</span><div><strong>Request received</strong><small>Your device details were recorded.</small></div></li>
+      <li><span class="step-check">2</span><div><strong>Device diagnostics</strong><small>Initial device information is available.</small></div></li>
+      <li><span class="step-check">3</span><div><strong>Service pending</strong><small>Waiting for backend response.</small></div></li>
+      <li><span class="step-check">4</span><div><strong>Service completed</strong><small>The final result will appear here.</small></div></li>
+    </ol>
+
+    <div class="dates">
+      <div><span>Request received</span><strong id="request-created">—</strong></div>
+      <div id="processing-detail" hidden><span>Processing started</span><strong id="processing-started">—</strong></div>
+      <div id="completed-detail" hidden><span>Completed</span><strong id="completed-date">—</strong></div>
+      <div class="dates-ref"><span>Reference</span><strong id="request-reference">Secure customer report</strong></div>
     </div>
   </section>
 
-  <section class="status-banner" aria-live="polite">
-    <div class="status-symbol"><span></span></div>
-    <div class="status-copy">
-      <span class="eyebrow">CURRENT SERVICE UPDATE</span>
-      <strong id="status-summary">Waiting for backend response.</strong>
-      <small id="last-updated">Retrieving latest status…</small>
-    </div>
-    <button id="refresh-status" class="refresh-button" type="button"><span aria-hidden="true">↻</span> Refresh</button>
-  </section>
+  <div class="layout">
 
-  <section class="report-grid">
-    <aside class="device-column">
+    <aside class="side">
       <article class="panel device-card">
-        <div class="panel-heading">
-          <div><p class="eyebrow">DEVICE OVERVIEW</p><h2>Your iPhone</h2></div>
-          <span class="mini-pill" id="device-capacity">128 GB</span>
+        <div class="card-head">
+          <div><p class="eyebrow">Device overview</p><h2>Your iPhone</h2></div>
+          <span class="pill" id="device-capacity">—</span>
         </div>
         <div class="phone-stage">
           <div class="phone-frame">
             <div class="phone-screen">
               <div class="phone-notch"></div>
-              <div class="phone-alert"><span>!</span><strong id="device-activation-state">Device Not Activated</strong></div>
-              <div class="phone-screen-foot" id="phone-model-label">iPhone 13 · Starlight</div>
+              <div class="phone-alert"><span>!</span><strong id="device-activation-state">Device status</strong></div>
+              <div class="phone-screen-foot" id="phone-model-label">—</div>
             </div>
           </div>
         </div>
-        <div class="device-caption">
-          <div><span class="muted-label">MODEL</span><strong id="device-model">iPhone 13</strong></div>
-          <div><span class="muted-label">FINISH</span><strong id="device-colour">Starlight</strong></div>
-        </div>
-      </article>
-
-      <article class="panel metric-card">
-        <div class="metric-head"><div><p class="eyebrow">BATTERY</p><h2>Battery health</h2></div><div class="progress-ring battery-ring" id="battery-ring"><span id="battery-health">87%</span></div></div>
-        <div class="metric-foot"><span>Charge cycles</span><strong id="battery-cycles">359</strong></div>
-        <div class="metric-track"><span id="battery-bar"></span></div>
-        <p class="metric-note">Battery condition reported by the device.</p>
-      </article>
-
-      <article class="panel metric-card">
-        <div class="metric-head"><div><p class="eyebrow">STORAGE</p><h2>Available capacity</h2></div><div class="progress-ring storage-ring" id="storage-ring"><span id="storage-percent">76%</span></div></div>
-        <div class="storage-value"><strong id="available-capacity">97.69 GB</strong><span>of <span id="disk-capacity">128 GB</span></span></div>
-        <div class="metric-track storage-track"><span id="storage-bar"></span></div>
-        <p class="metric-note">Space currently available on the device.</p>
+        <dl class="duo">
+          <div><dt>Model</dt><dd id="device-model">—</dd></div>
+          <div><dt>Finish</dt><dd id="device-colour">—</dd></div>
+        </dl>
       </article>
     </aside>
 
-    <div class="details-column">
-      <article class="panel details-panel">
-        <div class="panel-heading details-heading">
-          <div><p class="eyebrow">COMPLETE DEVICE REPORT</p><h2>Device information</h2></div>
-          <span class="report-live"><span></span> From device scan</span>
+    <div class="main-col">
+
+      <div class="metrics">
+        <article class="panel metric">
+          <div class="ring" id="battery-ring"><span id="battery-health">—</span></div>
+          <div class="metric-body">
+            <p class="eyebrow">Battery</p>
+            <h2>Battery health</h2>
+            <div class="metric-line"><span>Charge cycles</span><strong id="battery-cycles">—</strong></div>
+            <p class="note">Battery condition reported by the device.</p>
+          </div>
+        </article>
+
+        <article class="panel metric">
+          <div class="ring" id="storage-ring"><span id="storage-percent">—</span></div>
+          <div class="metric-body">
+            <p class="eyebrow">Storage</p>
+            <h2>Available capacity</h2>
+            <div class="metric-line"><strong id="available-capacity">—</strong><span>of <span id="disk-capacity">—</span></span></div>
+            <p class="note">Space currently available on the device.</p>
+          </div>
+        </article>
+      </div>
+
+      <article class="panel details">
+        <div class="card-head details-head">
+          <div><p class="eyebrow">Complete device report</p><h2>Device information</h2></div>
+          <span class="live"><i></i> From device scan</span>
         </div>
 
-        <section class="detail-group">
-          <div class="group-title"><span class="group-icon">01</span><div><h3>Model & software</h3><p>Hardware identity and operating system</p></div></div>
-          <div class="info-grid">
-            <div class="info-item"><span>iOS version</span><strong id="ios-version">18.3 (22D5055b)</strong></div>
-            <div class="info-item"><span>Model identifier</span><strong id="model-identifier">iPhone14,5</strong></div>
-            <div class="info-item"><span>Model number</span><strong id="model-number">A2633</strong></div>
-            <div class="info-item"><span>Model name</span><strong id="model-name">MLPG3 QN/A</strong></div>
-            <div class="info-item"><span>Sales region</span><strong id="sales-region">QN/A</strong></div>
-            <div class="info-item"><span>Manufacture date</span><strong id="manufacture-date">06/06/2023</strong></div>
-            <div class="info-item"><span>Warranty</span><strong id="warranty-status">Out of Warranty</strong></div>
-            <div class="info-item"><span>Charging state</span><strong id="charging-status">Not Charging</strong></div>
-          </div>
+        <section class="group">
+          <div class="group-title"><span class="group-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></span><div><h3>Model &amp; software</h3><p>Hardware identity and operating system</p></div></div>
+          <dl class="kv">
+            <div><dt>iOS version</dt><dd id="ios-version">—</dd></div>
+            <div><dt>Model identifier</dt><dd id="model-identifier">—</dd></div>
+            <div><dt>Model number</dt><dd id="model-number">—</dd></div>
+            <div><dt>Model name</dt><dd id="model-name">—</dd></div>
+            <div><dt>Sales region</dt><dd id="sales-region">—</dd></div>
+            <div><dt>Manufacture date</dt><dd id="manufacture-date">—</dd></div>
+            <div><dt>Warranty</dt><dd id="warranty-status">—</dd></div>
+            <div><dt>Charging state</dt><dd id="charging-status">—</dd></div>
+          </dl>
         </section>
 
-        <section class="detail-group">
-          <div class="group-title"><span class="group-icon">02</span><div><h3>Device identifiers</h3><p>Protected values are partially hidden for privacy</p></div></div>
-          <div class="info-grid">
-            <div class="info-item"><span>Serial number</span><strong class="protected-value" id="serial-number">••••••91W9</strong></div>
-            <div class="info-item"><span>IMEI 1</span><strong class="protected-value" id="imei-one">•••••••••••3506</strong></div>
-            <div class="info-item"><span>IMEI 2</span><strong class="protected-value" id="imei-two">•••••••••••7020</strong></div>
-          </div>
+        <section class="group">
+          <div class="group-title"><span class="group-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></svg></span><div><h3>Device identifiers</h3><p>Protected values are partially hidden for privacy</p></div></div>
+          <dl class="kv">
+            <div><dt>Serial number</dt><dd class="protected-value" id="serial-number">—</dd></div>
+            <div><dt>IMEI 1</dt><dd class="protected-value" id="imei-one">—</dd></div>
+            <div><dt>IMEI 2</dt><dd class="protected-value" id="imei-two">—</dd></div>
+          </dl>
         </section>
 
-        <section class="detail-group">
-          <div class="group-title"><span class="group-icon">03</span><div><h3>Activation & security</h3><p>Current activation and account-lock indicators</p></div></div>
-          <div class="info-grid">
-            <div class="info-item"><span>Activation</span><strong id="activation-status" class="value-warning">No</strong></div>
-            <div class="info-item"><span>Jailbreak</span><strong id="jailbreak-status" class="value-good">No</strong></div>
-            <div class="info-item"><span>ID Lock</span><strong id="id-lock-status">Unknown</strong></div>
-            <div class="info-item"><span>iCloud</span><strong id="icloud-status">Unknown</strong></div>
-          </div>
+        <section class="group">
+          <div class="group-title"><span class="group-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6l-7-3z"/><path d="m9 12 2 2 4-4"/></svg></span><div><h3>Activation &amp; security</h3><p>Current activation and account-lock indicators</p></div></div>
+          <dl class="kv">
+            <div><dt>Activation</dt><dd id="activation-status">—</dd></div>
+            <div><dt>Jailbreak</dt><dd id="jailbreak-status">—</dd></div>
+            <div><dt>ID Lock</dt><dd id="id-lock-status">—</dd></div>
+            <div><dt>iCloud</dt><dd id="icloud-status">—</dd></div>
+          </dl>
         </section>
 
-        <section class="detail-group last-group">
-          <div class="group-title"><span class="group-icon">04</span><div><h3>Diagnostics</h3><p>Additional scan information</p></div></div>
-          <div class="info-grid compact-grid">
-            <div class="info-item"><span>Crash logs</span><strong id="crash-logs">0</strong></div>
-            <div class="info-item"><span>Device state</span><strong id="device-state">Not activated</strong></div>
-          </div>
+        <section class="group last-group">
+          <div class="group-title"><span class="group-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2.5-6 5 12 2.5-6H21"/></svg></span><div><h3>Diagnostics</h3><p>Additional scan information</p></div></div>
+          <dl class="kv">
+            <div><dt>Crash logs</dt><dd id="crash-logs">—</dd></div>
+            <div><dt>Device state</dt><dd id="device-state">—</dd></div>
+          </dl>
         </section>
       </article>
 
-      <article class="panel progress-panel">
-        <div class="panel-heading"><div><p class="eyebrow">SERVICE WORKFLOW</p><h2>Request progress</h2></div><span class="mini-pill" id="progress-label">Step 3 of 4</span></div>
-        <ol class="progress-steps" id="status-steps">
-          <li class="done"><span class="step-check">✓</span><div><strong>Request received</strong><small>Your device details were recorded.</small></div></li>
-          <li class="done"><span class="step-check">✓</span><div><strong>Device diagnostics</strong><small>Initial device information is available.</small></div></li>
-          <li class="current"><span class="step-check">3</span><div><strong>Service pending</strong><small>Waiting for backend response.</small></div></li>
-          <li><span class="step-check">4</span><div><strong>Service completed</strong><small>The final result will appear here.</small></div></li>
-        </ol>
-        <div class="date-strip">
-          <div><span>Request received</span><strong id="request-created">—</strong></div>
-          <div id="processing-detail" hidden><span>Processing started</span><strong id="processing-started">—</strong></div>
-          <div id="completed-detail" hidden><span>Completed</span><strong id="completed-date">—</strong></div>
-        </div>
-      </article>
     </div>
+  </div>
+
+  <section id="error-panel" class="panel error-panel" role="alert" hidden>
+    <div>
+      <strong id="error-title">Unable to load this report</strong>
+      <p id="error-message">Check the tracking link and try again.</p>
+    </div>
+    <button class="btn" type="button" onclick="document.getElementById('refresh-status').click()">Try again</button>
   </section>
 
-  <section id="error-panel" class="panel error-panel" hidden>
-    <strong id="error-title">Unable to load this report</strong>
-    <p id="error-message">Check the tracking link and try again.</p>
-    <button class="refresh-button" type="button" onclick="document.getElementById('refresh-status').click()">Try again</button>
-  </section>
-  <p class="privacy-note">This secure page is intended for the customer who received the link. Full serial and IMEI values are never displayed.</p>
+  <p class="privacy-note"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>This secure page is intended for the customer who received the link. Full serial and IMEI values are never displayed.</p>
 </main>
 
 <footer>414Unlock <span>·</span> Customer device report</footer>
