@@ -12,10 +12,14 @@ var errorPanel=document.getElementById("error-panel");
 
 function text(id,value){var node=document.getElementById(id);if(node)node.textContent=value===null||value===undefined||value===""?"—":String(value);}
 function dateText(value){
- if(!value)return "—";
+ if(value===null||value===undefined||value==="")return "—";
  var n=Number(value);
- var d=new Date(n>1000000000000?n:n*1000);
- return Number.isNaN(d.getTime())?"—":d.toLocaleString();
+ var d=Number.isFinite(n)&&String(value).trim()!==""?new Date(n>1000000000000?n:n*1000):new Date(value);
+ if(Number.isNaN(d.getTime()))return "—";
+ return new Intl.DateTimeFormat("en-GB",{
+  timeZone:"Africa/Banjul",day:"2-digit",month:"short",year:"numeric",
+  hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:true
+ }).format(d);
 }
 function showError(message){
  errorPanel.hidden=false;
@@ -139,20 +143,20 @@ function render(order){
  if(completed)text("completed-date",dateText(order.completedAt));
  renderDetails(order);
  renderSteps(order);
- updated.textContent="Last updated · "+dateText(order.updatedAt||order.createdAt);
+ updated.textContent="Last updated · "+dateText(order.updatedAt??order.updated_at??order.lastUpdated??order.createdAt);
 }
 async function load(){
  if(!api){showError("The 414Unlock status service is not configured.");return;}
  if(!/^[a-f0-9]{64}$/i.test(token)){showError("This tracking link is incomplete or invalid.");return;}
- refresh.disabled=true;refresh.innerHTML='<span class="btn-icon" aria-hidden="true">↻</span> Loading…';
+ refresh.disabled=true;refresh.innerHTML='<span class="btn-icon" aria-hidden="true">↻</span><span class="btn-label">Loading…</span>';
  try{
-  var response=await fetch(api+"/api/public/unlock-status",{method:"POST",headers:{Accept:"application/json","Content-Type":"text/plain;charset=UTF-8"},body:token,cache:"no-store"});
+  var response=await fetch(api+"/api/public/unlock-status",{method:"POST",headers:{Accept:"application/json","Content-Type":"text/plain;charset=UTF-8","Cache-Control":"no-cache"},body:token,cache:"no-store"});
   var data={};try{data=await response.json();}catch(_){}
   if(!response.ok)throw new Error(data.message||"This tracking link could not be found.");
   if(!data.order)throw new Error("No device report was returned for this link.");
   render(data.order);
  }catch(error){showError(error.message||"The status service is temporarily unavailable. Try again shortly.");}
- finally{document.body.classList.remove("is-loading");refresh.disabled=false;refresh.innerHTML='<span class="btn-icon" aria-hidden="true">↻</span> Refresh';}
+ finally{document.body.classList.remove("is-loading");refresh.disabled=false;refresh.innerHTML='<span class="btn-icon" aria-hidden="true">↻</span><span class="btn-label">Refresh</span>';}
 }
 refresh.addEventListener("click",load);
 load();
