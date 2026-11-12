@@ -24,7 +24,10 @@ function showError(message){
  badge.className="status-badge error";
  badge.textContent="Link unavailable";
  title.textContent="We couldn't load this device report";
- summary.textContent="The customer report is temporarily unavailable.";
+ var paymentCycle=summary.querySelector(".cycle-payment"),bypassCycle=summary.querySelector(".cycle-bypass");
+ if(paymentCycle)paymentCycle.textContent=message||"Status unavailable";
+ if(bypassCycle)bypassCycle.hidden=true;
+ summary.setAttribute("aria-label",message||"Status unavailable");
  updated.textContent="Please check the tracking link and try again.";
 }
 function pct(v){return v===null||v===undefined||v===""?"—":v+"%";}
@@ -86,41 +89,47 @@ function renderSteps(order){
  var host=document.getElementById("status-steps");
  var status=String(order.status||"").toLowerCase();
  var d=order.deviceDetails||{};
+ var label=String(order.statusLabel||"");
  var stage=Number(d.progressStep)||0;
- if(!stage){stage=status==="submitted"?1:status==="registered"?2:status==="processing"?3:status==="completed"?4:0;}
- if(/step\s*3/i.test(String(order.statusLabel||"")))stage=3;
+ if(/requesting server response for bypass/i.test(label))stage=5;
+ if(!stage){stage=status==="submitted"?1:status==="registered"?2:status==="processing"?5:status==="completed"?5:0;}
+ if(status==="rejected")stage=0;
  var items=[
-  ["Payment successful","Your payment has been received successfully."],
-  ["Awaiting verification","Your payment and device details are waiting to be verified."],
-  ["Backend response","The service provider's system will return the next update."],
-  ["Service completed","The final service result will appear here."]
+  ["Device connected","Your iPhone was detected and its device details were collected."],
+  ["Backend approved","The backend approved the device for the requested service."],
+  ["Backend requested payment","The service was approved and payment was requested."],
+  ["Payment successful","Your payment was received successfully."],
+  ["Requesting server response for bypass","414Unlock is waiting for the service backend to respond."]
  ];
- if(status==="rejected"){stage=0;}
  host.textContent="";
  items.forEach(function(item,index){
   var li=document.createElement("li");
   var marker=document.createElement("span");
   marker.className="step-check";
-  marker.textContent=index+1<stage?"✓":String(index+1);
+  marker.textContent=index+1<stage||status==="completed"?"✓":String(index+1);
   var content=document.createElement("div");
   var strong=document.createElement("strong");strong.textContent=item[0];
   var small=document.createElement("small");small.textContent=item[1];
   content.appendChild(strong);content.appendChild(small);
-  if(status==="completed"||index+1<stage)li.className="done";
+  if(index+1<stage||status==="completed")li.className="done";
   else if(index+1===stage)li.className="current";
   li.appendChild(marker);li.appendChild(content);host.appendChild(li);
  });
- text("progress-label","Step "+(stage||"—")+" of 4");
+ text("progress-label",stage===5&&status!=="completed"?"Step 5 of 5 · Awaiting backend":"Step "+(stage||"—")+" of 5");
 }
 function render(order){
  errorPanel.hidden=true;
  var status=String(order.status||"").toLowerCase();
  var label=order.statusLabel||"Status update";
- badge.className="status-badge "+status;
- document.getElementById("update-banner").dataset.state=status||"pending";
+ var awaitingBypass=/requesting server response for bypass/i.test(label);
+ badge.className="status-badge "+(awaitingBypass?"awaiting-response":status);
  badge.textContent=label;
+ document.getElementById("update-banner").dataset.state=awaitingBypass?"awaiting-response":(status||"pending");
  title.textContent=order.deviceModel||"iPhone device report";
- summary.textContent=order.statusMessage||"Your service status has been updated.";
+ var paymentCycle=summary.querySelector(".cycle-payment"),bypassCycle=summary.querySelector(".cycle-bypass");
+ if(paymentCycle)paymentCycle.textContent="PAYMENT SUCCESSFUL";
+ if(bypassCycle){bypassCycle.textContent="REQUESTING SERVER RESPONSE FOR BYPASS";bypassCycle.hidden=!awaitingBypass;}
+ summary.setAttribute("aria-label",awaitingBypass?"Payment successful. Requesting server response for bypass.":(order.statusMessage||"Your service status has been updated."));
  text("request-reference","414Unlock service request");
  text("request-created",dateText(order.createdAt));
  var processing=!!order.processedAt,completed=status==="completed"&&!!order.completedAt;
