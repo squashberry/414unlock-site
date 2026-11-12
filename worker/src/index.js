@@ -41,11 +41,11 @@ export default {
         }, ready ? 200 : 503, headers);
       }
       const siteControls = await readSiteControls(env);
-      if (path !== "/api/app/update" && siteControls.geoRestriction && !isSupportedCountry(request)) {
+      if (path !== "/api/app/update" && path !== "/api/public/unlock-status" && siteControls.geoRestriction && !isSupportedCountry(request)) {
         if (env.DB && env.JWT_SECRET) { try { await recordSecurityEvent(env, await requestIdentity(request, env), "country_gate", "blocked", "unsupported_country", ""); } catch (_) {} }
         return countryNotSupported(headers);
       }
-      if (siteControls.serviceMode && !path.startsWith("/api/admin/") && !["/api/access/check","/api/health","/api/app/update","/api/auth/browser-challenge","/api/auth/login","/api/auth/me"].includes(path)) {
+      if (siteControls.serviceMode && !path.startsWith("/api/admin/") && !["/api/access/check","/api/health","/api/app/update","/api/public/unlock-status","/api/auth/browser-challenge","/api/auth/login","/api/auth/me"].includes(path)) {
         return json({error:"SERVICE_MODE",message:siteControls.serviceMessage,returnAt:siteControls.returnAt},503,headers);
       }
       if (path === "/api/auth/signup" && !siteControls.signupEnabled) return json({error:"SIGNUP_PAUSED",message:"New registrations are temporarily unavailable."},503,headers);
