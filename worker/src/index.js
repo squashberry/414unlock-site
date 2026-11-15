@@ -1553,6 +1553,8 @@ async function getPublicUnlockStatus(request, env, headers) {
     statusLabel: row.status_label,
     statusMessage: row.status_message,
     deviceDetails,
+    amountDue: deviceDetails.amountDue ?? deviceDetails.amount_due ?? deviceDetails.amount ?? null,
+    diagnostics: deviceDetails.diagnostics || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     processedAt: row.processed_at,
