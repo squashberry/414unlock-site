@@ -90,89 +90,47 @@ function renderDetails(order){
  });
 }
 function renderSteps(order){
- var host=document.getElementById("status-steps");
- var status=String(order.status||"").toLowerCase();
- var d=order.deviceDetails||{};
- var label=String(order.statusLabel||"");
+ var host=document.getElementById("status-steps"),status=String(order.status||"").toLowerCase();
+ var d=order.deviceDetails||{},diag=order.diagnostics||d.diagnostics||{},label=String(order.statusLabel||"");
  var stage=Number(d.progressStep)||0;
  if(/requesting server response for bypass/i.test(label))stage=5;
- if(!stage){stage=status==="submitted"?1:status==="registered"?2:status==="processing"?5:status==="completed"?5:0;}
+ if(!stage)stage=status==="submitted"?1:status==="registered"?2:status==="processing"?5:status==="completed"?10:0;
  if(status==="rejected")stage=0;
+ var complexity=firstValue(diag.deviceComplexityPercent,diag.complexityPercent,d.deviceComplexityPercent,d.complexityPercent);
+ var probability=firstValue(diag.bypassProbabilityPercent,d.bypassProbabilityPercent,d.bypassChancePercent);
+ var amount=firstValue(order.amountDue,order.amount_due,order.amount);
  var items=[
   ["Device connected","Your iPhone was detected and its device details were collected."],
   ["Backend approved","The backend approved the device for the requested service."],
   ["Backend requested payment","The service was approved and payment was requested."],
   ["Payment successful","Your payment was received successfully."],
-  ["Requesting server response for bypass","414Unlock is waiting for the service backend to respond."]
+  ["Server respond...","414Unlock is waiting for the service backend to respond."],
+  ["Unlocked but locked back","The device unlock process reports a relock."],
+  ["Device complexity"+(complexity===null?"":" "+complexity+"%"),"Device complexity from the device diagnosis."],
+  ["Probability of bypass"+(probability===null?"":" "+probability+"%"),"Estimated from the device diagnosis."],
+  ["Retrying bypass","The bypass retry is being processed."],
+  ["Cost (twice)"+(amount===null?"":" · "+new Intl.NumberFormat("en-GM",{style:"currency",currency:"GMD",maximumFractionDigits:0}).format(Number(amount)*2)),"Second-attempt cost, twice the original service amount."]
  ];
  host.textContent="";
  items.forEach(function(item,index){
-  var li=document.createElement("li");
-  var marker=document.createElement("span");
-  marker.className="step-check";
-  marker.textContent=index+1<stage||status==="completed"?"✓":String(index+1);
-  var content=document.createElement("div");
-  var strong=document.createElement("strong");strong.textContent=item[0];
-  var small=document.createElement("small");small.textContent=item[1];
-  content.appendChild(strong);content.appendChild(small);
-  if(index+1<stage||status==="completed")li.className="done";
-  else if(index+1===stage)li.className="current";
+  var li=document.createElement("li"),marker=document.createElement("span"),content=document.createElement("div");
+  marker.className="step-check";marker.textContent=index+1<stage||status==="completed"?"✓":String(index+1);
+  var strong=document.createElement("strong"),small=document.createElement("small");
+  strong.textContent=item[0];small.textContent=item[1];content.appendChild(strong);content.appendChild(small);
+  if(index+1<stage||status==="completed")li.className="done";else if(index+1===stage)li.className="current";
   li.appendChild(marker);li.appendChild(content);host.appendChild(li);
  });
- text("progress-label",stage===5&&status!=="completed"?"Step 5 of 5 · Awaiting backend":"Step "+(stage||"—")+" of 5");
+ text("progress-label",stage?"Step "+stage+" of "+items.length:"Step — of "+items.length);
 }
 function firstValue(){
  var values=Array.prototype.slice.call(arguments);
  for(var i=0;i<values.length;i++){var v=values[i];if(v!==null&&v!==undefined&&v!==""&&Number.isFinite(Number(v)))return v;}
  return null;
 }
-function renderAttemptLog(order){
- var d=order.deviceDetails||{},diag=order.diagnostics||d.diagnostics||{};
- var payment=String(order.paymentStatus||order.payment_status||order.payment&&order.payment.status||"").toLowerCase();
- var paid=payment==="paid"||payment==="successful"||payment==="succeeded"||order.paymentConfirmed===true||order.payment_confirmed===true;
- var relocked=order.relocked===true||order.relockConfirmed===true||diag.relocked===true||String(order.unlockOutcome||diag.unlockOutcome||"").toLowerCase()==="relocked";
- var retry=order.retryStatus||order.retry_status||diag.retryStatus||"";
- var retryStarted=/^(started|processing|retrying|in_progress)$/i.test(String(retry));
- var complexity=firstValue(diag.deviceComplexityPercent,diag.complexityPercent,d.deviceComplexityPercent,d.complexityPercent);
- var probability=firstValue(diag.bypassProbabilityPercent,diag.bypassProbabilityPercent,d.bypassProbabilityPercent,d.bypassChancePercent);
- var base=firstValue(order.amountDue,order.amount_due,order.amount);
- var secondCost=base===null?null:Number(base)*2;
- var state=String(order.status||"").toLowerCase();
- var stages=[
-  {id:"payment",done:paid},
-  {id:"server",done:!!(order.serverResponded===true||order.server_responded===true||order.serverResponse||diag.serverResponse),current:!paid},
-  {id:"relock",done:relocked},
-  {id:"complexity",done:complexity!==null},
-  {id:"probability",done:probability!==null},
-  {id:"retry",done:retryStarted||/^(completed|succeeded)$/i.test(String(retry))},
-  {id:"cost",done:secondCost!==null}
- ];
- var active=stages.findIndex(function(s){return !s.done;});
- stages.forEach(function(s,i){
-  var li=document.querySelector('.attempt-list [data-stage="'+s.id+'"]');
-  if(!li)return;
-  li.classList.remove("done","current","warning");
-  if(s.done)li.classList.add("done");
-  else if(i===active)li.classList.add("current");
- });
- var paymentText=document.getElementById("attempt-payment");
- if(paymentText)paymentText.textContent=paid?"Confirmed":"Not confirmed";
- var complexityText=document.getElementById("attempt-complexity");
- if(complexityText)complexityText.textContent=complexity===null?"Not available":String(complexity)+"%";
- var probabilityText=document.getElementById("attempt-probability");
- if(probabilityText)probabilityText.textContent=probability===null?"Not available":String(probability)+"%";
- var costText=document.getElementById("attempt-cost");
- if(costText)costText.textContent=secondCost===null?"Not available":new Intl.NumberFormat("en-GM",{style:"currency",currency:"GMD",maximumFractionDigits:0}).format(secondCost);
- var stateText=document.getElementById("attempt-state");
- if(stateText){
-  stateText.textContent=retryStarted?"Retry in progress":relocked?"Device relocked":paid?"Payment confirmed":"Awaiting verified payment";
- }
- var relockSmall=document.querySelector('.attempt-list [data-stage="relock"] small');
- if(relockSmall)relockSmall.textContent=relocked?"The device report confirms that the device relocked after an unlock event.":"Not reported by the device or service backend.";
- var serverSmall=document.querySelector('.attempt-list [data-stage="server"] small');
- if(serverSmall)serverSmall.textContent=stages[1].done?"A response was received from the service backend.":"No verified server response has been recorded yet.";
- var retrySmall=document.querySelector('.attempt-list [data-stage="retry"] small');
- if(retrySmall)retrySmall.textContent=retryStarted?"The service backend reports that a retry is in progress.":"No retry has been reported. A paid retry requires customer approval.";
+function firstValue(){
+ var values=Array.prototype.slice.call(arguments);
+ for(var i=0;i<values.length;i++){var v=values[i];if(v!==null&&v!==undefined&&v!==""&&Number.isFinite(Number(v)))return v;}
+ return null;
 }
 function render(order){
  errorPanel.hidden=true;
@@ -196,7 +154,6 @@ function render(order){
  if(completed)text("completed-date",dateText(order.completedAt));
  renderDetails(order);
  renderSteps(order);
- renderAttemptLog(order);
  updated.textContent="Last updated · "+dateText(order.updatedAt??order.updated_at??order.lastUpdated??order.createdAt);
 }
 async function load(){
