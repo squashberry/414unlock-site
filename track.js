@@ -92,8 +92,10 @@ function renderDetails(order){
 function renderSteps(order){
  var host=document.getElementById("status-steps"),status=String(order.status||"").toLowerCase();
  var d=order.deviceDetails||{},diag=order.diagnostics||d.diagnostics||{},label=String(order.statusLabel||"");
+ // A saved progressStep is authoritative. The status label is only a fallback;
+ // it must not force the timeline back to step 5 when the record has advanced.
  var stage=Number(d.progressStep)||0;
- if(/requesting server response for bypass/i.test(label))stage=5;
+ if(!stage&&/requesting server response for bypass/i.test(label))stage=5;
  if(!stage)stage=status==="submitted"?1:status==="registered"?2:status==="processing"?5:status==="completed"?10:0;
  if(status==="rejected")stage=0;
  var complexity=firstValue(diag.deviceComplexityPercent,diag.complexityPercent,d.deviceComplexityPercent,d.complexityPercent);
