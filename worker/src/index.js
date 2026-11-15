@@ -80,6 +80,7 @@ export default {
       if (request.method === "GET" && path === "/api/admin/support/tickets") return await listAdminSupportTickets(request, env, headers);
       const adminSupportStatusMatch = path.match(/^\/api\/admin\/support\/tickets\/([a-f0-9]{32})\/status$/i);
       if (request.method === "POST" && adminSupportStatusMatch) return await updateAdminSupportTicketStatus(request, env, headers, adminSupportStatusMatch[1]);
+      if (request.method === "POST" && path === "/api/admin/tracking/diagnosis") return await updateTrackingDiagnosis(request, env, headers);
       if (request.method === "GET" && path === "/api/admin/queue") return await adminQueue(request, env, headers);
       if (request.method === "GET" && path === "/api/admin/users") return await listAdminUsers(request, env, headers);
       const adminUserDetailMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})$/i);
@@ -1457,6 +1458,75 @@ async function updateServiceOrderStatus(request, env, headers, id) {
       ok: true, status: nextStatus, refunded,
       message: refunded ? "Request rejected before processing. Its service charge has been returned to the customer's wallet." :
         nextStatus === "rejected" ? "Request rejected after processing had started; no automatic refund was applied." : "Service request status updated."
+    }, 200, headers);
+  } catch (error) { throwOrReturn(error, headers); }
+}
+
+async function updateTrackingDiagnosis(request, env, headers) {
+  try {
+    const admin = await requireAdmin(request, env);
+    const body = await readJson(request);
+    const token = typeof body.trackingToken === "string" ? body.trackingToken.trim().toLowerCase() : "";
+    if (!/^[a-f0-9]{64}$/.test(token)) {
+      throw new ApiError(400, "INVALID_TRACKING_LINK", "Supply a valid customer tracking token.");
+    }
+
+    const complexity = Number(body.deviceComplexityPercent);
+    const probability = Number(body.bypassProbabilityPercent);
+    if (!Number.isFinite(complexity) || complexity < 0 || complexity > 100 ||
+        !Number.isFinite(probability) || probability < 0 || probability > 100) {
+      throw new ApiError(400, "INVALID_DIAGNOSIS", "Diagnosis percentages must be between 0 and 100.");
+    }
+
+    const row = await env.DB.prepare(
+      "SELECT device_details_json FROM customer_tracking_links WHERE tracking_token=? LIMIT 1"
+    ).bind(token).first();
+    if (!row) throw new ApiError(404, "TRACKING_LINK_NOT_FOUND", "That customer tracking record could not be found.");
+
+    let details = {};
+    try {
+      const parsed = JSON.parse(row.device_details_json || "{}");
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) details = parsed;
+    } catch (_) {}
+
+    details.diagnostics = {
+      ...(details.diagnostics && typeof details.diagnostics === "object" ? details.diagnostics : {}),
+      deviceComplexityPercent: complexity,
+      bypassProbabilityPercent: probability
+    };
+    // Preserve any real amount already attached to this record; never invent a price.
+    const amount = [details.amountDue, details.amount_due, details.amount]
+      .map(Number).find((value) => Number.isFinite(value) && value >= 0);
+    if (amount !== undefined) details.amountDue = amount;
+    details.progressStep = 9;
+    details.progressTimeline = [
+      "Payment successful",
+      "Server respond...",
+      "Unlocked but locked back",
+      "Device complexity assessed",
+      "Probability of bypass estimated",
+      "Retrying bypass",
+      "Cost (twice)"
+    ];
+    details.diagnosisUpdatedAt = Math.floor(Date.now() / 1000);
+
+    const result = await env.DB.prepare(
+      "UPDATE customer_tracking_links SET device_details_json=?,updated_at=? WHERE tracking_token=?"
+    ).bind(JSON.stringify(details), details.diagnosisUpdatedAt, token).run();
+    if (!result.success) throw new ApiError(500, "DIAGNOSIS_SAVE_FAILED", "The device diagnosis could not be saved.");
+
+    try {
+      await env.DB.prepare(
+        "INSERT INTO admin_audit_log(id,actor_email,action,created_at) VALUES(?,?,?,?)"
+      ).bind(randomHex(16), admin.email, "customer_tracking_diagnosis_updated", details.diagnosisUpdatedAt).run();
+    } catch (_) {}
+
+    return json({
+      ok: true,
+      message: "Diagnosis saved to this customer tracking record.",
+      diagnostics: details.diagnostics,
+      amountDue: amount === undefined ? null : amount,
+      progressStep: details.progressStep
     }, 200, headers);
   } catch (error) { throwOrReturn(error, headers); }
 }
