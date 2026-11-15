@@ -332,3 +332,11 @@ footer span{padding:0 5px}
   .dates{grid-template-columns:1fr}
   .metric{gap:12px}
 }
+
+/* Extended request progress timeline */
+.steps{grid-template-columns:1fr;gap:0}
+.steps li{flex-direction:row;align-items:flex-start;gap:14px;padding:0 0 22px;min-height:56px}
+.steps li:before{top:34px;left:15px;right:auto;bottom:-2px;width:2px;height:auto}
+.steps li:last-child{padding-bottom:0}
+.steps li:last-child:before{display:none}
+.steps li>div{padding-top:5px}
