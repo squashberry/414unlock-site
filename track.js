@@ -95,6 +95,9 @@ function renderSteps(order){
  // A saved progressStep is authoritative. The status label is only a fallback;
  // it must not force the timeline back to step 5 when the record has advanced.
  var stage=Number(d.progressStep)||0;
+ // This tracking flow has reached its final listed stage once payment is
+ // confirmed; do not let an older saved progress value keep it at step 5.
+ if(/payment successful/i.test(label))stage=10;
  if(!stage&&/requesting server response for bypass/i.test(label))stage=5;
  if(!stage)stage=status==="submitted"?1:status==="registered"?2:status==="processing"?5:status==="completed"?10:0;
  if(status==="rejected")stage=0;
