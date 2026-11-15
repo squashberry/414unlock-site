@@ -116,10 +116,13 @@ function renderSteps(order){
  items.slice().reverse().forEach(function(item,index){
   var stepNumber=items.length-index;
   var li=document.createElement("li"),marker=document.createElement("span"),content=document.createElement("div");
-  marker.className="step-check";marker.textContent=stepNumber<stage||status==="completed"?"✓":String(stepNumber);
+  // Keep the active step highlighted, including step 10 at the top.
+  var isCurrent=stepNumber===stage;
+  var isDone=stepNumber<stage;
+  marker.className="step-check";marker.textContent=isDone?"✓":String(stepNumber);
   var strong=document.createElement("strong"),small=document.createElement("small");
   strong.textContent=item[0];small.textContent=item[1];content.appendChild(strong);content.appendChild(small);
-  if(stepNumber<stage||status==="completed")li.className="done";else if(stepNumber===stage)li.className="current";
+  if(isCurrent)li.className="current";else if(isDone)li.className="done";
   li.appendChild(marker);li.appendChild(content);host.appendChild(li);
  });
  text("progress-label",stage?"Step "+stage+" of "+items.length:"Step — of "+items.length);
