@@ -56,6 +56,22 @@
       <li><span class="step-check">4</span><div><strong>Service completed</strong><small>The final result will appear here.</small></div></li>
     </ol>
 
+    <section class="attempt-panel" aria-labelledby="attempt-title">
+      <div class="attempt-head">
+        <div><p class="eyebrow">Unlock attempt log</p><h2 id="attempt-title">Unlock process</h2></div>
+        <span class="pill" id="attempt-state">Waiting for diagnosis</span>
+      </div>
+      <ol class="attempt-list" id="attempt-list" aria-live="polite">
+        <li data-stage="payment"><span class="attempt-marker">1</span><div><strong>Payment successful</strong><small>Payment confirmation will be shown when verified by the server.</small></div><b class="attempt-value" id="attempt-payment">—</b></li>
+        <li data-stage="server"><span class="attempt-marker">2</span><div><strong>Server respond...</strong><small>Waiting for a verified response from the unlock service.</small></div></li>
+        <li data-stage="relock"><span class="attempt-marker">3</span><div><strong>Unlocked but locked back</strong><small>Shown only if the device report confirms a relock event.</small></div></li>
+        <li data-stage="complexity"><span class="attempt-marker">4</span><div><strong>Device complexity</strong><small>Based on diagnostic data returned for this device.</small></div><b class="attempt-value" id="attempt-complexity">Not available</b></li>
+        <li data-stage="probability"><span class="attempt-marker">5</span><div><strong>Probability of bypass</strong><small>Only displayed when the service backend supplies an assessed estimate.</small></div><b class="attempt-value" id="attempt-probability">Not available</b></li>
+        <li data-stage="retry"><span class="attempt-marker">6</span><div><strong>Retrying bypass</strong><small>A retry must be confirmed and reported by the service backend.</small></div></li>
+        <li data-stage="cost"><span class="attempt-marker">7</span><div><strong>Cost (twice)</strong><small>Illustrative second-attempt price; no additional charge is made on this page.</small></div><b class="attempt-value" id="attempt-cost">Not available</b></li>
+      </ol>
+    </section>
+
     <div class="dates">
       <div><span>Request received</span><strong id="request-created">—</strong></div>
       <div id="processing-detail" hidden><span>Processing started</span><strong id="processing-started">—</strong></div>
