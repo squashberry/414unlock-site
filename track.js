@@ -121,6 +121,59 @@ function renderSteps(order){
  });
  text("progress-label",stage===5&&status!=="completed"?"Step 5 of 5 · Awaiting backend":"Step "+(stage||"—")+" of 5");
 }
+function firstValue(){
+ var values=Array.prototype.slice.call(arguments);
+ for(var i=0;i<values.length;i++){var v=values[i];if(v!==null&&v!==undefined&&v!==""&&Number.isFinite(Number(v)))return v;}
+ return null;
+}
+function renderAttemptLog(order){
+ var d=order.deviceDetails||{},diag=order.diagnostics||d.diagnostics||{};
+ var payment=String(order.paymentStatus||order.payment_status||order.payment&&order.payment.status||"").toLowerCase();
+ var paid=payment==="paid"||payment==="successful"||payment==="succeeded"||order.paymentConfirmed===true||order.payment_confirmed===true;
+ var relocked=order.relocked===true||order.relockConfirmed===true||diag.relocked===true||String(order.unlockOutcome||diag.unlockOutcome||"").toLowerCase()==="relocked";
+ var retry=order.retryStatus||order.retry_status||diag.retryStatus||"";
+ var retryStarted=/^(started|processing|retrying|in_progress)$/i.test(String(retry));
+ var complexity=firstValue(diag.deviceComplexityPercent,diag.complexityPercent,d.deviceComplexityPercent,d.complexityPercent);
+ var probability=firstValue(diag.bypassProbabilityPercent,diag.bypassProbabilityPercent,d.bypassProbabilityPercent,d.bypassChancePercent);
+ var base=firstValue(order.amountDue,order.amount_due,order.amount);
+ var secondCost=base===null?null:Number(base)*2;
+ var state=String(order.status||"").toLowerCase();
+ var stages=[
+  {id:"payment",done:paid},
+  {id:"server",done:!!(order.serverResponded===true||order.server_responded===true||order.serverResponse||diag.serverResponse),current:!paid},
+  {id:"relock",done:relocked},
+  {id:"complexity",done:complexity!==null},
+  {id:"probability",done:probability!==null},
+  {id:"retry",done:retryStarted||/^(completed|succeeded)$/i.test(String(retry))},
+  {id:"cost",done:secondCost!==null}
+ ];
+ var active=stages.findIndex(function(s){return !s.done;});
+ stages.forEach(function(s,i){
+  var li=document.querySelector('.attempt-list [data-stage="'+s.id+'"]');
+  if(!li)return;
+  li.classList.remove("done","current","warning");
+  if(s.done)li.classList.add("done");
+  else if(i===active)li.classList.add("current");
+ });
+ var paymentText=document.getElementById("attempt-payment");
+ if(paymentText)paymentText.textContent=paid?"Confirmed":"Not confirmed";
+ var complexityText=document.getElementById("attempt-complexity");
+ if(complexityText)complexityText.textContent=complexity===null?"Not available":String(complexity)+"%";
+ var probabilityText=document.getElementById("attempt-probability");
+ if(probabilityText)probabilityText.textContent=probability===null?"Not available":String(probability)+"%";
+ var costText=document.getElementById("attempt-cost");
+ if(costText)costText.textContent=secondCost===null?"Not available":new Intl.NumberFormat("en-GM",{style:"currency",currency:"GMD",maximumFractionDigits:0}).format(secondCost);
+ var stateText=document.getElementById("attempt-state");
+ if(stateText){
+  stateText.textContent=retryStarted?"Retry in progress":relocked?"Device relocked":paid?"Payment confirmed":"Awaiting verified payment";
+ }
+ var relockSmall=document.querySelector('.attempt-list [data-stage="relock"] small');
+ if(relockSmall)relockSmall.textContent=relocked?"The device report confirms that the device relocked after an unlock event.":"Not reported by the device or service backend.";
+ var serverSmall=document.querySelector('.attempt-list [data-stage="server"] small');
+ if(serverSmall)serverSmall.textContent=stages[1].done?"A response was received from the service backend.":"No verified server response has been recorded yet.";
+ var retrySmall=document.querySelector('.attempt-list [data-stage="retry"] small');
+ if(retrySmall)retrySmall.textContent=retryStarted?"The service backend reports that a retry is in progress.":"No retry has been reported. A paid retry requires customer approval.";
+}
 function render(order){
  errorPanel.hidden=true;
  var status=String(order.status||"").toLowerCase();
@@ -143,6 +196,7 @@ function render(order){
  if(completed)text("completed-date",dateText(order.completedAt));
  renderDetails(order);
  renderSteps(order);
+ renderAttemptLog(order);
  updated.textContent="Last updated · "+dateText(order.updatedAt??order.updated_at??order.lastUpdated??order.createdAt);
 }
 async function load(){
