@@ -112,12 +112,14 @@ function renderSteps(order){
   ["Cost (twice)"+(amount===null?"":" · "+new Intl.NumberFormat("en-GM",{style:"currency",currency:"GMD",maximumFractionDigits:0}).format(Number(amount)*2)),"Second-attempt cost, twice the original service amount."]
  ];
  host.textContent="";
- items.forEach(function(item,index){
+ // Display newest/final stage first: step 10 at the top, step 1 at the bottom.
+ items.slice().reverse().forEach(function(item,index){
+  var stepNumber=items.length-index;
   var li=document.createElement("li"),marker=document.createElement("span"),content=document.createElement("div");
-  marker.className="step-check";marker.textContent=index+1<stage||status==="completed"?"✓":String(index+1);
+  marker.className="step-check";marker.textContent=stepNumber<stage||status==="completed"?"✓":String(stepNumber);
   var strong=document.createElement("strong"),small=document.createElement("small");
   strong.textContent=item[0];small.textContent=item[1];content.appendChild(strong);content.appendChild(small);
-  if(index+1<stage||status==="completed")li.className="done";else if(index+1===stage)li.className="current";
+  if(stepNumber<stage||status==="completed")li.className="done";else if(stepNumber===stage)li.className="current";
   li.appendChild(marker);li.appendChild(content);host.appendChild(li);
  });
  text("progress-label",stage?"Step "+stage+" of "+items.length:"Step — of "+items.length);
